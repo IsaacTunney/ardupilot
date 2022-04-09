@@ -377,6 +377,8 @@ public:
 
         k_param_vehicle = 257, // vehicle common block of parameters
 
+        k_param_rvt_pwm = 258, // Param to set PWM of motors during REVERSE THRUST (landing sequence)
+
         // the k_param_* space is 9-bits in size
         // 511: reserved
     };
@@ -454,9 +456,13 @@ public:
     AP_Float        fs_ekf_thresh;
     AP_Int16        gcs_pid_mask;
 
-#if MODE_THROW_ENABLED == ENABLED
-    AP_Enum<ModeThrow::PreThrowMotorState>         throw_motor_start;
-#endif
+    // New parameter added :
+    AP_Int16        rvt_pwm;
+
+// ********** COMMENTED OUT FOR BENCH TEST MODE **********
+// #if MODE_THROW_ENABLED == ENABLED
+//     AP_Enum<ModeThrow::PreThrowMotorState>         throw_motor_start;
+// #endif
 
     AP_Int16                rc_speed; // speed of fast RC Channels in Hz
 
@@ -506,11 +512,12 @@ public:
     AP_Gripper gripper;
 #endif
 
-#if MODE_THROW_ENABLED == ENABLED
-    // Throw mode parameters
-    AP_Int8 throw_nextmode;
-    AP_Enum<ModeThrow::ThrowType> throw_type;
-#endif
+// ********** COMMENTED OUT FOR BENCH TEST MODE **********
+// #if MODE_THROW_ENABLED == ENABLED
+//     // Throw mode parameters
+//     AP_Int8 throw_nextmode;
+//     AP_Enum<ModeThrow::ThrowType> throw_type;
+// #endif
 
     // ground effect compensation enable/disable
     AP_Int8 gndeffect_comp_enabled;

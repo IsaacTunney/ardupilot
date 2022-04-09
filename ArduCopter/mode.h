@@ -1070,15 +1070,27 @@ public:
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(AP_Arming::Method method) const override { return false; };
     bool is_autopilot() const override { return true; }
-
     bool is_landing() const override { return true; };
-
     void do_not_use_GPS();
 
     // returns true if LAND mode is trying to control X/Y position
     bool controlling_position() const { return control_position; }
-
     void set_land_pause(bool new_value) { land_pause = new_value; }
+
+
+    // bool requires_GPS() const override { return false; }
+    // bool has_manual_throttle() const override { return false; }
+    // bool allows_arming(AP_Arming::Method method) const override { return false; };
+    // bool is_autopilot() const override { return true; }
+
+    // bool is_landing() const override { return true; };
+
+    // void do_not_use_GPS();
+
+    // // returns true if LAND mode is trying to control X/Y position
+    // bool controlling_position() const { return control_position; }
+
+    // void set_land_pause(bool new_value) { land_pause = new_value; }
 
 protected:
 
@@ -1089,13 +1101,25 @@ private:
 
     void gps_run();
     void nogps_run();
+    bool is_quad_touching_ground();
 
     bool control_position; // true if we are using an external reference to control position
 
     uint32_t land_start_time;
-    bool land_pause;
-};
+    uint32_t land_loop_time;
+    uint32_t land_GPSloop_time;
+    uint32_t land_NoGPSloop_time;
+    uint32_t delay1;
 
+    bool     start_countdown_before_drop;
+    uint32_t countdown_before_drop_time;
+    uint32_t reverse_thrust_timer;
+    
+    bool     motorsShutDown;
+    bool     land_pause;
+
+    bool     activate_reverse_thrust; //NEW VARIABLE ADDED FOR REVERSE THRUST
+};
 
 class ModeLoiter : public Mode {
 
@@ -1532,61 +1556,131 @@ private:
     } systemid_state;
 };
 
-class ModeThrow : public Mode {
+class ModeThrow : public Mode
+{
+    public:
+        // inherit constructors
+        using Mode::Mode;
+        Number mode_number() const override { return Number::THROW; }
 
-public:
-    // inherit constructor
-    using Mode::Mode;
-    Number mode_number() const override { return Number::THROW; }
+        bool init(bool ignore_checks) override;
+        void run() override;
+        void output_to_motors() override;
 
-    bool init(bool ignore_checks) override;
-    void run() override;
+        // void exit() override;
+        bool requires_GPS() const override { return false; }
+        bool has_manual_throttle() const override { return false; } //true
+        bool allows_arming(AP_Arming::Method method) const override { return true; }
+        bool is_autopilot() const override { return true; } //false
+        // void change_motor_direction(bool reverse);
 
-    bool requires_GPS() const override { return true; }
-    bool has_manual_throttle() const override { return false; }
-    bool allows_arming(AP_Arming::Method method) const override { return true; };
-    bool is_autopilot() const override { return false; }
+        enum state_testMode
+        {
+            INIT,
+            WAIT,
+            DROPPING,
+            TOUCHING_GROUND,
+            FULL_RVT,
+            FLIPPING,
+            // SLIDING,
+            // LANDING_SAFELY,
+            LANDED,
+            DONE,
+        };
 
-    // Throw types
-    enum class ThrowType {
-        Upward = 0,
-        Drop = 1
-    };
+        state_testMode state; //declare variable to hold enum state
 
-    enum class PreThrowMotorState {
-        STOPPED = 0,
-        RUNNING = 1,
-    };
+        enum state_landingMode
+        {
+            REACTIVE,
+            PROACTIVE,
+        };
 
-protected:
+        state_landingMode landingMode;
 
-    const char *name() const override { return "THROW"; }
-    const char *name4() const override { return "THRW"; }
+    protected:
+        const char *name() const override { return "THROW"; }
+        const char *name4() const override { return "THRW"; }
 
-private:
+    private:
 
-    bool throw_detected();
-    bool throw_position_good() const;
-    bool throw_height_good() const;
-    bool throw_attitude_good() const;
+        bool is_quad_dropping();
+        bool is_quad_touching_ground();
+        bool is_quad_flipping();
+        bool is_quad_sliding();
+        bool quad_has_landed();
+        bool is_flipping_getting_worse();
+        bool is_lean_angle_stabilizing();
 
-    // Throw stages
-    enum ThrowModeStage {
-        Throw_Disarmed,
-        Throw_Detecting,
-        Throw_Wait_Throttle_Unlimited,
-        Throw_Uprighting,
-        Throw_HgtStabilise,
-        Throw_PosHold
-    };
+        bool activate_rvt;
+        bool activate_rvt_front_only;
+        bool activate_max_rvt_for_sliding;
+        int  rvt_pwm;
+        int  ii;
+        uint32_t full_rvt_timer;
+        uint32_t wait_timer;
+        uint32_t dropping_time;
+        uint32_t dropping_start_timer;
 
-    ThrowModeStage stage = Throw_Disarmed;
-    ThrowModeStage prev_stage = Throw_Disarmed;
-    uint32_t last_log_ms;
-    bool nextmode_attempted;
-    uint32_t free_fall_start_ms;    // system time free fall was detected
-    float free_fall_start_velz;     // vertical velocity when free fall was detected
+
+        float motors_output;
+        Vector2f motors_input;
+
 };
+// REAL CODE OF THE MODE THROW
+// public:
+//     // inherit constructor
+//     using Mode::Mode;
+//     Number mode_number() const override { return Number::THROW; }
+
+//     bool init(bool ignore_checks) override;
+//     void run() override;
+
+//     bool requires_GPS() const override { return true; }
+//     bool has_manual_throttle() const override { return false; }
+//     bool allows_arming(AP_Arming::Method method) const override { return true; };
+//     bool is_autopilot() const override { return false; }
+
+//     // Throw types
+//     enum class ThrowType {
+//         Upward = 0,
+//         Drop = 1
+//     };
+
+//     enum class PreThrowMotorState {
+//         STOPPED = 0,
+//         RUNNING = 1,
+//     };
+
+// protected:
+
+//     const char *name() const override { return "THROW"; }
+//     const char *name4() const override { return "THRW"; }
+
+// private:
+
+//     bool throw_detected();
+//     bool throw_position_good() const;
+//     bool throw_height_good() const;
+//     bool throw_attitude_good() const;
+
+//     // Throw stages
+//     enum ThrowModeStage {
+//         Throw_Disarmed,
+//         Throw_Detecting,
+//         Throw_Wait_Throttle_Unlimited,
+//         Throw_Uprighting,
+//         Throw_HgtStabilise,
+//         Throw_PosHold
+//     };
+
+//     ThrowModeStage stage = Throw_Disarmed;
+//     ThrowModeStage prev_stage = Throw_Disarmed;
+//     uint32_t last_log_ms;
+//     bool nextmode_attempted;
+//     uint32_t free_fall_start_ms;    // system time free fall was detected
+//     float free_fall_start_velz;     // vertical velocity when free fall was detected
+// };
 
 #if MODE_TURTLE_ENABLED == ENABLED
 class ModeTurtle : public Mode {
