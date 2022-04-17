@@ -135,7 +135,7 @@ void ModeLand::gps_run()
     // }
 
     // ICEBERG LANDING TESTS
-    if (start_countdown_before_drop == true && is_quad_touching_ground )
+    if (start_countdown_before_drop == true && is_quad_touching_ground() )
     {
         motorsShutDown = true;
         reverse_thrust_timer = millis();
@@ -183,8 +183,8 @@ void ModeLand::gps_run()
         make_safe_ground_handling();
         loiter_nav->init_target();
     }
-    {
     else //still flying
+    {
         loiter_nav->clear_pilot_desired_acceleration();
         // set motors to full range
         motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
@@ -275,7 +275,7 @@ void ModeLand::nogps_run()
     // }
     
     // ICEBERG LANDING TESTS
-    if (start_countdown_before_drop == true && is_quad_touching_ground )
+    if (start_countdown_before_drop == true && is_quad_touching_ground() )
     {
         motorsShutDown = true;
         reverse_thrust_timer = millis();
@@ -339,7 +339,7 @@ void ModeLand::nogps_run()
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
 
-bool ModeThrow::is_quad_touching_ground()
+bool ModeLand::is_quad_touching_ground()
 {
     // Check for lean angle over 55 degrees
     float lean_angle_deg = abs(degrees(acosf(ahrs.cos_roll()*ahrs.cos_pitch())));

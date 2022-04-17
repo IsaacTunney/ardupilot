@@ -570,6 +570,11 @@ void Copter::twentyfive_hz_logging()
         g2.arot.Log_Write_Autorotation();
     }
 #endif
+
+#if RANGEFINDER_ENABLED == ENABLED
+    //Put my code for icebergs slope calculation here!!
+#endif
+
 }
 
 // three_hz_loop - 3.3hz loop
