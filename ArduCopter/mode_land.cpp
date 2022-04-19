@@ -11,11 +11,10 @@ bool ModeLand::init(bool ignore_checks)
     pos_control->set_max_speed_accel_xy(wp_nav->get_default_speed_xy(), wp_nav->get_wp_acceleration());
     pos_control->set_correction_speed_accel_xy(wp_nav->get_default_speed_xy(), wp_nav->get_wp_acceleration());
 
-    // initialise the horizontal position controller
+    // initialize the horizontal position controller
     if (control_position && !pos_control->is_active_xy()) {
         pos_control->init_xy_controller();
     }
-    // else { return false; } si je veux empêcher l'accès au mode sans GPS...
 
     // set vertical speed and acceleration limits
     pos_control->set_max_speed_accel_z(wp_nav->get_default_speed_down(), wp_nav->get_default_speed_up(), wp_nav->get_accel_z());
@@ -118,21 +117,6 @@ void ModeLand::gps_run()
             gcs().send_text(MAV_SEVERITY_CRITICAL, "Starting countdown before drop!");
         }
     }
-    // // ICEBERG LANDING TESTS
-    // // Activate drop sequence if estimated altitude is 50cm (for speed of 50 cm/s)
-    // if ( start_countdown_before_drop == true && motorsShutDown == false )
-    // {
-    //     if ( (millis()-countdown_before_drop_time) >= 700 ) //50cm/s for 0.6s = 30cm so will drop at 30cm from ground
-    //     {
-    //         //Countdown done. Stop motors or apply reverse thrust for 2000 milliseconds.
-    //         motorsShutDown = true;
-    //         reverse_thrust_timer = millis();
-    //     }
-    //     else //Printing countdown on HUD
-    //     {  
-    //         gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double) (millis()-countdown_before_drop_time) );
-    //     }
-    // }
 
     // ICEBERG LANDING TESTS
     if (start_countdown_before_drop == true && is_quad_touching_ground() )

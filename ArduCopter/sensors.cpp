@@ -1,4 +1,5 @@
 #include "Copter.h"
+#include <GCS_MAVLink/GCS.h>
 
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
@@ -45,6 +46,7 @@ void Copter::read_rangefinder(void)
     for (uint8_t i=0; i < ARRAY_SIZE(rngfnd); i++) {
         // local variables to make accessing simpler
         RangeFinderState &rf_state = rngfnd[i].state;
+
         enum Rotation rf_orient = rngfnd[i].orientation;
 
         // update health
@@ -53,6 +55,10 @@ void Copter::read_rangefinder(void)
 
         // tilt corrected but unfiltered, not glitch protected alt
         rf_state.alt_cm = tilt_correction * rangefinder.distance_cm_orient(rf_orient);
+
+        // TESTING STUFF
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "%1.0d : Distance : %4.2d", i, rangefinder.distance_cm_orient(rf_orient));
+        // TESTING STUFF END
 
         // remember inertial alt to allow us to interpolate rangefinder
         rf_state.inertial_alt_cm = inertial_nav.get_position_z_up_cm();
