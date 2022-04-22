@@ -18,21 +18,16 @@ bool ModeLand::init(bool ignore_checks)
     if (control_position && !pos_control->is_active_xy()) { pos_control->init_xy_controller(); }
     if ( !pos_control->is_active_z() ) { pos_control->init_z_controller(); }
 
-    land_start_time     = millis();
-    land_loop_time      = millis();
-    
-    state = DESCENT;
-    flyingState = flying;
-
-    start_countdown_before_drop = false;
-    motorsShutDown              = false;
-    land_pause                  = false;
-
+    state                       = INIT;
     i                           = 0; //counter
 
+    shutdown_motors             = false;
     activate_rvt_countertorque  = false;
     activate_rvt                = false;
+    land_pause                  = false;
+
     rvt_duration                = 2000; // Duration of rvt after landing, milliseconds
+    countdown_duration          = (70 - g.shutdown_height_cm) / g.land_speed * 1000; // milliseconds
 
     copter.ap.land_repo_active = false; // reset flag indicating if pilot has applied roll or pitch inputs during landing
     copter.ap.prec_land_active = false; // this will be set true if prec land is later active
@@ -58,9 +53,8 @@ void ModeLand::run()
 }
 
 
-// land_gps_run - runs the land controller
-//      horizontal position controlled with loiter controller
-//      should be called at 100hz or more
+// LAND CONTROLLER WITH GPS - Horizontal position controlled with loiter controller
+// Frequency: 100hz or more
 void ModeLand::gps_run()
 {
     int32_t height_above_ground_cm = copter.current_loc.alt;
@@ -70,7 +64,11 @@ void ModeLand::gps_run()
     {
         case INIT: // Make sure rangefinder readings are ok before allowing landing
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : INIT"); }
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "State : INIT");
+
+            shutdown_motors            = false;
+            activate_rvt_countertorque = false;
+            activate_rvt               = false;
 
             if ( do_prelanding_verifications() ) { state = DESCENT; i = 0; }
 
@@ -78,7 +76,7 @@ void ModeLand::gps_run()
 
         case DESCENT: // Normal descent with rangefinder detection
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT"); }
 
             height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
 
@@ -95,7 +93,7 @@ void ModeLand::gps_run()
 
         case COUNTDOWN: // Countdown to reach desired height (out of rangefinder's range)
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
 
             countdown_duration = (70 - g.shutdown_height_cm) / g.land_speed * 1000; // milliseconds
             countdown_chrono = millis() - countdown_start;
@@ -116,7 +114,9 @@ void ModeLand::gps_run()
 
         case DROPPING: // Drone is free falling
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DROPPING"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DROPPING"); }
+
+            shutdown_motors = true;
 
             if (is_quad_touching_ground() ) { state = TOUCHING_GROUND; i = 0; }
 
@@ -124,7 +124,7 @@ void ModeLand::gps_run()
 
         case TOUCHING_GROUND: // Drone just hit the ground
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : TOUCHING GROUND"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : TOUCHING GROUND"); }
 
             state = RVT;
             rvt_start = millis();
@@ -134,10 +134,12 @@ void ModeLand::gps_run()
 
         case RVT: // Activate Full Reverse Thrust
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : RVT"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : RVT"); }
             
+            shutdown_motors            = false;
             activate_rvt_countertorque = false;
             activate_rvt               = true;
+
             rvt_chrono = millis()-rvt_start;
 
             if ( is_quad_flipping() ) { state = FLIPPING; i = 0; }
@@ -151,11 +153,11 @@ void ModeLand::gps_run()
 
         case FLIPPING: // Drone is flipping, but there is still time to recover
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING"); }
 
-            activate_rvt = false; 
+            activate_rvt = false;
+
             rvt_chrono = millis()-rvt_start;
-
             if ( rvt_chrono <= rvt_duration ) { activate_rvt_countertorque = true; }
             else { state = LANDED_BUT_STILL_ALERT; i = 0; break; } // Done with RVT, switch to LANDED state
 
@@ -172,6 +174,7 @@ void ModeLand::gps_run()
 
             activate_rvt               = false;
             activate_rvt_countertorque = false;
+            shutdown_motors            = false;
 
             motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
             motors->output();
@@ -185,13 +188,13 @@ void ModeLand::gps_run()
 
         case DONE: // Landing is done. Nothing else to do. Change mode to allow for takeoff.
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DONE"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DONE"); }
 
             break;
 
         case ABORT_LANDING: // Future work : Add "abort landing" functionalities
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
 
             break;
     }
@@ -218,11 +221,11 @@ void ModeLand::gps_run()
     }
 
     // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
-    attitude_control->landing_controller_setRVT(activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
 }
 
 
-// LAND CONTROLLER WITH NO GPS - pilot controls roll and pitch angles
+// LAND CONTROLLER WITH NO GPS - Pilot controls roll and pitch angles
 // Frequency: 100hz or more
 void ModeLand::nogps_run()
 {
@@ -236,7 +239,12 @@ void ModeLand::nogps_run()
     {
         case INIT: // Make sure rangefinder readings are ok before allowing landing
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : INIT"); }
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "State : INIT");
+
+            shutdown_motors            = false;
+            activate_rvt_countertorque = false;
+            activate_rvt               = false;
+
 
             if ( do_prelanding_verifications() ) { state = DESCENT; i = 0; }
 
@@ -244,7 +252,7 @@ void ModeLand::nogps_run()
 
         case DESCENT: // Normal descent with rangefinder detection
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT"); }
 
             height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
 
@@ -255,25 +263,22 @@ void ModeLand::nogps_run()
                 state = COUNTDOWN;
                 countdown_start  = millis();
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "Starting countdown before drop!");
+                i = 0;
             }
 
             break;
 
         case COUNTDOWN: // Countdown to reach desired height (out of rangefinder's range)
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
 
-            countdown_duration = (70 - g.shutdown_height_cm) / g.land_speed * 1000; // milliseconds
             countdown_chrono = millis() - countdown_start;
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono );
 
             if ( countdown_chrono >= countdown_duration )
             {
                 state = DROPPING;
                 i = 0;
-            }
-            else
-            {
-                if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
             }
 
             // TO ADD : If is_quad_tilting() { state = TOUCHING_GROUND; i = 0; } // Quad reached ground before the end of the countdown
@@ -282,7 +287,9 @@ void ModeLand::nogps_run()
 
         case DROPPING: // Drone is free falling
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DROPPING"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DROPPING"); }
+
+            shutdown_motors = true;
 
             if (is_quad_touching_ground() ) { state = TOUCHING_GROUND; i = 0; }
 
@@ -290,7 +297,7 @@ void ModeLand::nogps_run()
 
         case TOUCHING_GROUND: // Drone just hit the ground
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : TOUCHING GROUND"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : TOUCHING GROUND"); }
 
             state = RVT;
             rvt_start = millis();
@@ -300,10 +307,12 @@ void ModeLand::nogps_run()
 
         case RVT: // Activate Full Reverse Thrust
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : RVT"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : RVT"); }
             
+            shutdown_motors            = false;
             activate_rvt_countertorque = false;
             activate_rvt               = true;
+
             rvt_chrono = millis()-rvt_start;
 
             if ( is_quad_flipping() ) { state = FLIPPING; i = 0; }
@@ -317,7 +326,7 @@ void ModeLand::nogps_run()
 
         case FLIPPING: // Drone is flipping, but there is still time to recover
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING"); }
 
             activate_rvt = false; 
             rvt_chrono = millis()-rvt_start;
@@ -338,6 +347,7 @@ void ModeLand::nogps_run()
 
             activate_rvt               = false;
             activate_rvt_countertorque = false;
+            shutdown_motors            = false;
 
             motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
             motors->output();
@@ -351,18 +361,18 @@ void ModeLand::nogps_run()
 
         case DONE: // Landing is done. Nothing else to do. Change mode to allow for takeoff.
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DONE"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DONE"); }
 
             break;
 
         case ABORT_LANDING: // Future work : Add "abort landing" functionalities
 
-            if (i == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
+            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
 
             break;
     }
     i++;
-    
+
     // if (copter.rangefinder_alt_ok())
     // {
     //     height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
@@ -436,7 +446,7 @@ void ModeLand::nogps_run()
     attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
     // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
-    attitude_control->landing_controller_setRVT(activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
 }
 
 

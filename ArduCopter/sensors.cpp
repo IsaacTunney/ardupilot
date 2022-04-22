@@ -57,7 +57,7 @@ void Copter::read_rangefinder(void)
         rf_state.alt_cm = tilt_correction * rangefinder.distance_cm_orient(rf_orient);
 
         // TESTING STUFF
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "%1.0d : Distance : %4.2d", i, rangefinder.distance_cm_orient(rf_orient));
+        //gcs().send_text(MAV_SEVERITY_CRITICAL, "%1.0d : Distance : %4.2d", i, rangefinder.distance_cm_orient(rf_orient));
         // TESTING STUFF END
 
         // remember inertial alt to allow us to interpolate rangefinder

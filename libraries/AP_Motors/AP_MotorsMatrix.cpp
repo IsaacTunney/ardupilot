@@ -193,6 +193,10 @@ void AP_MotorsMatrix::output_to_motors()
                 if (i==1 || i==3) { rc_write(i, 1500); }
                 else { rc_write(i, 1000); }
             }
+            else if (_shutdown_motors)
+            {
+                rc_write(i, 1500);
+            }
             else
             {
                 rc_write(i, output_to_pwm(_actuator[i]));

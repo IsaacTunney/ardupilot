@@ -1097,12 +1097,6 @@ public:
         PROACTIVE,
     }; state_landingMode landingMode;
 
-    enum state_flyingState
-    {
-        flying,
-        landed,
-    }; state_flyingState flyingState;
-
 protected:
 
     const char *name() const override { return "LAND"; }
@@ -1143,13 +1137,12 @@ private:
     uint32_t rvt_duration;
     uint32_t rvt_start;
     uint32_t rvt_chrono;
-    
-    bool     motorsShutDown;
-    bool     countdown_before_drop_time;
-    bool     land_pause;
 
+    bool     shutdown_motors;
     bool     activate_rvt;
     bool     activate_rvt_countertorque;
+
+    bool     land_pause;
 
 };
 
