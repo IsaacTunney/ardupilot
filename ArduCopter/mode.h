@@ -1077,20 +1077,31 @@ public:
     bool controlling_position() const { return control_position; }
     void set_land_pause(bool new_value) { land_pause = new_value; }
 
+    enum state_stateMachine
+    {
+        INIT,
+        DESCENT,
+        COUNTDOWN,
+        DROPPING,
+        TOUCHING_GROUND,
+        RVT,
+        FLIPPING,
+        LANDED_BUT_STILL_ALERT,
+        DONE,
+        ABORT_LANDING,
+    }; state_stateMachine state; //declare variable to hold enum state
 
-    // bool requires_GPS() const override { return false; }
-    // bool has_manual_throttle() const override { return false; }
-    // bool allows_arming(AP_Arming::Method method) const override { return false; };
-    // bool is_autopilot() const override { return true; }
+    enum state_landingMode
+    {
+        REACTIVE,
+        PROACTIVE,
+    }; state_landingMode landingMode;
 
-    // bool is_landing() const override { return true; };
-
-    // void do_not_use_GPS();
-
-    // // returns true if LAND mode is trying to control X/Y position
-    // bool controlling_position() const { return control_position; }
-
-    // void set_land_pause(bool new_value) { land_pause = new_value; }
+    enum state_flyingState
+    {
+        flying,
+        landed,
+    }; state_flyingState flyingState;
 
 protected:
 
@@ -1101,25 +1112,47 @@ private:
 
     void gps_run();
     void nogps_run();
+
+    bool do_prelanding_verifications();
+    bool is_quad_dropping();
     bool is_quad_touching_ground();
+    bool is_quad_tilting();
+    bool is_quad_flipping();
+    bool is_quad_sliding();
+    bool quad_has_landed();
+    bool is_flipping_getting_worse();
+    bool is_lean_angle_stabilizing();
+    void process_pilot_inputs(float target_roll, float target_pitch, float target_yaw_rate);
+    
+    float motors_output;
+    Vector2f motors_input;
 
     bool control_position; // true if we are using an external reference to control position
 
     uint32_t land_start_time;
     uint32_t land_loop_time;
-    uint32_t land_GPSloop_time;
-    uint32_t land_NoGPSloop_time;
-    uint32_t delay1;
+    int      i; // State-machine iteration counter
 
     bool     start_countdown_before_drop;
-    uint32_t countdown_before_drop_time;
     uint32_t reverse_thrust_timer;
+
+    uint32_t countdown_duration;
+    uint32_t countdown_start;
+    uint32_t countdown_chrono;
+
+    uint32_t rvt_duration;
+    uint32_t rvt_start;
+    uint32_t rvt_chrono;
     
     bool     motorsShutDown;
+    bool     countdown_before_drop_time;
     bool     land_pause;
 
-    bool     activate_reverse_thrust; //NEW VARIABLE ADDED FOR REVERSE THRUST
+    bool     activate_rvt;
+    bool     activate_rvt_countertorque;
+
 };
+
 
 class ModeLoiter : public Mode {
 
@@ -1587,7 +1620,6 @@ class ModeThrow : public Mode
             LANDED,
             DONE,
         };
-
         state_testMode state; //declare variable to hold enum state
 
         enum state_landingMode
@@ -1595,7 +1627,6 @@ class ModeThrow : public Mode
             REACTIVE,
             PROACTIVE,
         };
-
         state_landingMode landingMode;
 
     protected:

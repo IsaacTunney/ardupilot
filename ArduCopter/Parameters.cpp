@@ -112,6 +112,14 @@ const AP_Param::Info Copter::var_info[] = {
     // @Range: 1000 1500
     GSCALAR(rvt_pwm, "RVT_PWM", RVT_PWM_DEFAULT),
 
+    // @Param: SHUTDOWN_HEIGHT
+    // @DisplayName: Landing shutdown height
+    // @Description: The height at which motors are shutdown during landing sequence
+    // @User: Advanced
+    // @Units: cm
+    // @Range: 0 50
+    GSCALAR(shutdown_height_cm, "SHUTDOWN_HEIGHT", SHUTDOWN_HEIGHT_DEFAULT),
+
 #if MODE_RTL_ENABLED == ENABLED
     // @Param: RTL_ALT
     // @DisplayName: RTL Altitude

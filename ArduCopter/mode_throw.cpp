@@ -206,15 +206,14 @@ void ModeThrow::run()
                 break;
         }
     }
+    ii++; //counter
 
     // Land State Machine Determination
     // if (is_disarmed_or_landed())
     // {
     //     make_safe_ground_handling();
     //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Making safe ground handling for other tests.");
-    // }
-
-    ii++; //counter
+    // }    
 }
 // ------------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------------

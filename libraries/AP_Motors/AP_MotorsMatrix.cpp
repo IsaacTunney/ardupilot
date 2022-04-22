@@ -184,9 +184,14 @@ void AP_MotorsMatrix::output_to_motors()
     {
         if (motor_enabled[i])
         {
-            if (_activate_rvt == true ) //flag was set during ModeLand custom state machine
+            if (_activate_rvt) //flag was set during ModeLand custom state machine
             {
                 rc_write(i, _rvt_pwm);
+            }
+            else if (_activate_rvt_ct)
+            {
+                if (i==1 || i==3) { rc_write(i, 1500); }
+                else { rc_write(i, 1000); }
             }
             else
             {

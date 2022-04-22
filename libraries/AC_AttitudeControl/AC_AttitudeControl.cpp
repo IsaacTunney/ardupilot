@@ -307,9 +307,9 @@ void AC_AttitudeControl::input_euler_angle_roll_pitch_euler_rate_yaw(float euler
     attitude_controller_run_quat();
 }
 
-void AC_AttitudeControl::landing_controller_setRVT( bool is_reverse_thrust_active, int rvt_pwm )
+void AC_AttitudeControl::landing_controller_setRVT( bool rvt_active, bool rvt_countertorque_active, int rvt_pwm )
 {
-    _motors.set_reverse_thrust(is_reverse_thrust_active, rvt_pwm);
+    _motors.set_reverse_thrust(rvt_active, rvt_countertorque_active, rvt_pwm);
 }
 
 // Command an euler roll, pitch and yaw angle with angular velocity feedforward and smoothing

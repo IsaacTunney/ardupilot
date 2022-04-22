@@ -378,6 +378,8 @@ public:
         k_param_vehicle = 257, // vehicle common block of parameters
 
         k_param_rvt_pwm = 258, // Param to set PWM of motors during REVERSE THRUST (landing sequence)
+        k_param_shutdown_height_cm = 259,
+        
 
         // the k_param_* space is 9-bits in size
         // 511: reserved
@@ -456,8 +458,9 @@ public:
     AP_Float        fs_ekf_thresh;
     AP_Int16        gcs_pid_mask;
 
-    // New parameter added :
+    // New parameters added for RVT:
     AP_Int16        rvt_pwm;
+    AP_Int16        shutdown_height_cm;
 
 // ********** COMMENTED OUT FOR BENCH TEST MODE **********
 // #if MODE_THROW_ENABLED == ENABLED
