@@ -56,14 +56,10 @@ void Copter::read_rangefinder(void)
         // tilt corrected but unfiltered, not glitch protected alt
         rf_state.alt_cm = tilt_correction * rangefinder.distance_cm_orient(rf_orient);
 
-        // TESTING STUFF
-        //gcs().send_text(MAV_SEVERITY_CRITICAL, "%1.0d : Distance : %4.2d", i, rangefinder.distance_cm_orient(rf_orient));
-        // TESTING STUFF END
-
         // remember inertial alt to allow us to interpolate rangefinder
         rf_state.inertial_alt_cm = inertial_nav.get_position_z_up_cm();
 
-        // glitch handling.  rangefinder readings more than RANGEFINDER_GLITCH_ALT_CM from the last good reading
+        // glitch handling. rangefinder readings more than RANGEFINDER_GLITCH_ALT_CM from the last good reading
         // are considered a glitch and glitch_count becomes non-zero
         // glitches clear after RANGEFINDER_GLITCH_NUM_SAMPLES samples in a row.
         // glitch_cleared_ms is set so surface tracking (or other consumers) can trigger a target reset

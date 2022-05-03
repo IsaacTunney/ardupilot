@@ -571,10 +571,6 @@ void Copter::twentyfive_hz_logging()
     }
 #endif
 
-#if RANGEFINDER_ENABLED == ENABLED
-    //Put my code for icebergs slope calculation here!!
-#endif
-
 }
 
 // three_hz_loop - 3.3hz loop
@@ -590,6 +586,18 @@ void Copter::three_hz_loop()
     // check if we have breached a fence
     fence_check();
 #endif // AC_FENCE_ENABLED
+
+#if RANGEFINDER_ENABLED == ENABLED
+    // Put my code for slope calculation here!!
+    RF_distances = rangefinder.get_both_distances_cm(); // fetch RF distances from libraries
+    //gcs().send_text(MAV_SEVERITY_CRITICAL, "Dist 1: %4.02f, Dist 2: %4.02f", bothDistances[0], bothDistances[1] );
+    RF1_offsets = rangefinder.get_rangefinder_offset_cm(0); // fetch RF1 offsets (NED in body frame)
+    RF2_offsets = rangefinder.get_rangefinder_offset_cm(1); // fetch RF2 offsets (NED in body frame)
+    // Fetch drone angle :
+    
+    ground_inclination = atan( (RF_distances[0]-RF_distances[1]) / (RF1_offsets[0]-RF2_offsets[0]) ) * 180 / 3.1416;
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground inclination: %4.2f deg", ground_inclination);
+#endif
 
 
     // update ch6 in flight tuning
