@@ -666,6 +666,7 @@ private:
     Vector3f RF1_offsets;
     Vector3f RF2_offsets;
     float ground_inclination;
+    float tilt_compensation;
     // TESTING STUFF END
     void one_hz_loop();
     void init_simple_bearing();
