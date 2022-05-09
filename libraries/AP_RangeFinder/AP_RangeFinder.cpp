@@ -698,7 +698,6 @@ Vector3f RangeFinder::get_rangefinder_offset_cm(int rangefinder_instance)
     if (backend != nullptr)
     {
        offset = backend->get_pos_offset()*100;
-       // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF %1.0d :Offset: %4.2f cm, %4.2f cm, %4.2f cm",rangefinder_instance+1, offset[0], offset[1], offset[2] );
     }
     return offset;
 }

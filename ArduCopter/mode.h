@@ -1108,6 +1108,7 @@ private:
     void nogps_run();
 
     bool do_prelanding_verifications();
+    void run_landing_state_machine();
     bool is_quad_dropping();
     bool is_quad_touching_ground();
     bool is_quad_tilting();
@@ -1122,6 +1123,7 @@ private:
     Vector2f motors_input;
 
     bool control_position; // true if we are using an external reference to control position
+    int32_t height_above_ground_cm;;
 
     uint32_t land_start_time;
     uint32_t land_loop_time;
