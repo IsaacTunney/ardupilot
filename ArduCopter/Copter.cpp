@@ -602,7 +602,7 @@ void Copter::three_hz_loop()
     // Add tilt angle compensation:
     // tilt_compensation = MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
     ground_inclination = -degrees(ahrs.get_pitch()) - ground_inclination;
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground inclination with comp.: %4.2f deg", ground_inclination );
+    //gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground inclination with comp.: %4.2f deg", ground_inclination );
 #endif
 
     // update ch6 in flight tuning

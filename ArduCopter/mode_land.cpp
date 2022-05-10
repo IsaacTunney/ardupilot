@@ -27,7 +27,8 @@ bool ModeLand::init(bool ignore_checks)
     land_pause                  = false;
 
     rvt_duration                = 2000; // Duration of rvt after landing, milliseconds
-    countdown_duration          = (70 - g.shutdown_height_cm) / g.land_speed * 1000; // milliseconds
+    countdown_duration          = ( 70.0 - (double)g.shutdown_height_cm ) / (double)g.land_speed * 1000.0; // milliseconds
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown duration (const): %4.2d milliseconds", (int)countdown_duration);
 
     copter.ap.land_repo_active = false; // reset flag indicating if pilot has applied roll or pitch inputs during landing
     copter.ap.prec_land_active = false; // this will be set true if prec land is later active
@@ -205,7 +206,7 @@ void ModeLand::run_landing_state_machine()
 
             height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
 
-            if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
+            if (i%5 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
             
             if (height_above_ground_cm <= 70)
             {
@@ -224,7 +225,7 @@ void ModeLand::run_landing_state_machine()
             countdown_chrono = millis() - countdown_start;
             gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono );
 
-            if ( countdown_chrono >= countdown_duration )
+            if ( countdown_chrono >= (uint32_t)countdown_duration )
             {
                 state = DROPPING;
                 i = 0;

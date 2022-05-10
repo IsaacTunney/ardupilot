@@ -1132,7 +1132,7 @@ private:
     bool     start_countdown_before_drop;
     uint32_t reverse_thrust_timer;
 
-    uint32_t countdown_duration;
+    double countdown_duration;
     uint32_t countdown_start;
     uint32_t countdown_chrono;
 
