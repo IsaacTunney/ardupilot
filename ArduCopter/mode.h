@@ -1136,6 +1136,10 @@ private:
     uint32_t countdown_start;
     uint32_t countdown_chrono;
 
+    uint32_t dropping_max_duration;
+    uint32_t dropping_start;
+    uint32_t dropping_chrono;
+
     uint32_t rvt_duration;
     uint32_t rvt_start;
     uint32_t rvt_chrono;

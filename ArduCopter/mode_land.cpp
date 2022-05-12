@@ -29,6 +29,7 @@ bool ModeLand::init(bool ignore_checks)
     rvt_duration                = 2000; // Duration of rvt after landing, milliseconds
     countdown_duration          = ( 70.0 - (double)g.shutdown_height_cm ) / (double)g.land_speed * 1000.0; // milliseconds
     gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown duration (const): %4.2d milliseconds", (int)countdown_duration);
+    dropping_max_duration       = 500; // milliseconds
 
     copter.ap.land_repo_active = false; // reset flag indicating if pilot has applied roll or pitch inputs during landing
     copter.ap.prec_land_active = false; // this will be set true if prec land is later active
@@ -225,9 +226,13 @@ void ModeLand::run_landing_state_machine()
             countdown_chrono = millis() - countdown_start;
             gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono );
 
+            if ( is_quad_touching_ground() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant la fin du countdown
+            if ( is_quad_tilting() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant
+            
             if ( countdown_chrono >= (uint32_t)countdown_duration )
             {
                 state = DROPPING;
+                dropping_start = millis();
                 i = 0;
             }
 
@@ -240,8 +245,10 @@ void ModeLand::run_landing_state_machine()
             if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DROPPING"); }
 
             shutdown_motors = true;
+            dropping_chrono = millis() - dropping_start;
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "Dropping chrono : %4.2f milliseconds", (double)dropping_chrono );
 
-            if (is_quad_touching_ground() ) { state = TOUCHING_GROUND; i = 0; }
+            if (is_quad_touching_ground() || dropping_chrono >= dropping_max_duration) { state = TOUCHING_GROUND; i = 0; }
 
             break;
 
@@ -345,9 +352,9 @@ bool ModeLand::do_prelanding_verifications()
 
 bool ModeLand::is_quad_tilting()
 {
-    // Check for lean angle over 55 degrees
+    // Check for lean angle over 20 degrees
     float lean_angle_deg = abs(degrees(acosf(ahrs.cos_roll()*ahrs.cos_pitch())));
-    bool condition1 = (lean_angle_deg >= 10);
+    bool condition1 = (lean_angle_deg >= 20);
     return condition1;
 }
 
@@ -371,7 +378,7 @@ bool ModeLand::is_quad_flipping()
 {
     // Check for lean angle over 55 degrees
     float lean_angle_deg = degrees(acosf(ahrs.cos_roll()*ahrs.cos_pitch()));
-    bool condition1 = (lean_angle_deg >= 63);
+    bool condition1 = (lean_angle_deg >= 55);
     return condition1;
 }
 
