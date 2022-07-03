@@ -1,4 +1,5 @@
 #include "Copter.h"
+#include "GCS_Mavlink.h"
 
 #if MODE_FOLLOW_ENABLED == ENABLED
 
@@ -13,18 +14,19 @@
  * TODO: ensure AC_AVOID_ENABLED is true because we rely on it velocity limiting functions
  */
 
-// initialise follow mode
+// Initialize follow mode
 bool ModeFollow::init(const bool ignore_checks)
 {
     if (!g2.follow.enabled()) {
         gcs().send_text(MAV_SEVERITY_WARNING, "Set FOLL_ENABLE = 1");
         return false;
     }
+
     // re-use guided mode
     return ModeGuided::init(ignore_checks);
 }
 
-// perform cleanup required when leaving follow mode
+// Perform cleanup required when leaving follow mode
 void ModeFollow::exit()
 {
     g2.follow.clear_offsets_if_required();
@@ -37,6 +39,8 @@ void ModeFollow::run()
         make_safe_ground_handling();
         return;
     }
+
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Starting run loop");
 
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
@@ -54,13 +58,16 @@ void ModeFollow::run()
     Vector3f dist_vec_offs;  // vector to lead vehicle + offset
     Vector3f vel_of_target;  // velocity of lead vehicle
     if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target)) {
+        
         // convert dist_vec_offs to cm in NEU
         const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
+        
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Distance to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y);
 
         // calculate desired velocity vector in cm/s in NEU
         const float kp = g2.follow.get_pos_p().kP();
-        desired_velocity_neu_cms.x = (vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp);
-        desired_velocity_neu_cms.y = (vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp);
+        desired_velocity_neu_cms.x =  (vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp);
+        desired_velocity_neu_cms.y =  (vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp);
         desired_velocity_neu_cms.z = (-vel_of_target.z * 100.0f) + (dist_vec_offs_neu.z * kp);
 
         // scale desired velocity to stay within horizontal speed limit
@@ -138,6 +145,10 @@ void ModeFollow::run()
                break;
 
         }
+    }
+    else
+    {
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); 
     }
 
     // log output at 10hz

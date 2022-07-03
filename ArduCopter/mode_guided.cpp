@@ -32,7 +32,7 @@ struct Guided_Limit {
     Vector3f start_pos; // start position as a distance from home in cm.  used for checking horiz_max limit
 } guided_limit;
 
-// init - initialise guided controller
+// init - initialize guided controller
 bool ModeGuided::init(bool ignore_checks)
 {
     // start in velaccel control mode
@@ -44,6 +44,7 @@ bool ModeGuided::init(bool ignore_checks)
     // clear pause state when entering guided mode
     _paused = false;
 
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Finished initializing Guided mode. Returning True!");
     return true;
 }
 

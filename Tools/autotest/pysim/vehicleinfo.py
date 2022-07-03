@@ -144,6 +144,16 @@ class VehicleInfo(object):
                                             "default_params/airsim-quadX.parm"],
                 "external": True,
             },
+            "gazebo-drone1": {
+                "waf_target": "bin/arducopter",
+                "default_params_filename": ["default_params/copter.parm",
+                                            "default_params/gazebo-drone1.parm"],
+            },
+            "gazebo-drone2": {
+                "waf_target": "bin/arducopter",
+                "default_params_filename": ["default_params/copter.parm",
+                                            "default_params/gazebo-drone2.parm"],
+            },
             # HELICOPTER
             "heli": {
                 "waf_target": "bin/arducopter-heli",

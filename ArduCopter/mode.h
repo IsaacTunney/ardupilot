@@ -1081,6 +1081,7 @@ public:
     {
         INIT,
         DESCENT,
+        DESCENT_WITHOUT_RF,
         COUNTDOWN,
         DROPPING,
         TOUCHING_GROUND,
@@ -1108,6 +1109,8 @@ private:
     void nogps_run();
 
     bool do_prelanding_verifications();
+    bool RF_glitch_detected();
+    bool drone_was_too_far_from_ground();
     void run_landing_state_machine();
     bool is_quad_dropping();
     bool is_quad_touching_ground();
@@ -1123,7 +1126,8 @@ private:
     Vector2f motors_input;
 
     bool control_position; // true if we are using an external reference to control position
-    int32_t height_above_ground_cm;;
+    int32_t height_above_ground_cm;
+    int32_t RFdistance_buffer[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     uint32_t land_start_time;
     uint32_t land_loop_time;
@@ -1783,7 +1787,7 @@ public:
 
     bool requires_GPS() const override { return true; }
     bool has_manual_throttle() const override { return false; }
-    bool allows_arming(AP_Arming::Method method) const override { return false; }
+    bool allows_arming(AP_Arming::Method method) const override { return true; } // Was false
     bool is_autopilot() const override { return true; }
 
 protected:
