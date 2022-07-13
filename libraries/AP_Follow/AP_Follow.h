@@ -50,6 +50,9 @@ public:
     // set which target to follow
     void set_target_sysid(uint8_t sysid) { _sysid = sysid; }
 
+    // Get mavlink id of target to follow
+    AP_Int16 get_target_sysid() { return _sysid; }
+
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
 

@@ -120,6 +120,14 @@ const AP_Param::Info Copter::var_info[] = {
     // @Range: 0 50
     GSCALAR(shutdown_height_cm, "SHUTDOWN_HEIGHT", SHUTDOWN_HEIGHT_DEFAULT),
 
+    // @Param: LANDING_TYPE
+    // @DisplayName: Landing type
+    // @Description: The type of landing to perform: on roofs (or ice/rough terrain), on boats, or on moving vehicle
+    // @User: Advanced
+    // @Units: No units
+    // @Range: ROOF, BOAT or VEHICLE
+    GSCALAR(landing_type, "LANDING_TYPE", LANDING_TYPE_DEFAULT),
+
 #if MODE_RTL_ENABLED == ENABLED
     // @Param: RTL_ALT
     // @DisplayName: RTL Altitude

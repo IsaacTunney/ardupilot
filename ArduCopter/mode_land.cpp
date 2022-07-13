@@ -20,12 +20,13 @@ bool ModeLand::init(bool ignore_checks)
     if ( !pos_control->is_active_z() ) { pos_control->init_z_controller(); }
 
     state                       = INIT;
-    i                           = 1; //counter
+    i                           = 1; // counter
 
     shutdown_motors             = false;
     activate_rvt_countertorque  = false;
     activate_rvt                = false;
-    land_pause                  = true;
+    land_pause                  = false;
+    g.landing_type              = VEHICLE;  // default
 
     rvt_duration                = 2000; // Duration of rvt after landing, milliseconds
     countdown_duration          = ( 70.0 - (double)g.shutdown_height_cm ) / (double)g.land_speed * 1000.0; // milliseconds
@@ -44,7 +45,8 @@ bool ModeLand::init(bool ignore_checks)
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder NOT enabled!");
     #endif
 
-    return true;
+    if (g.landing_type == VEHICLE) { return ModeGuided::init(ignore_checks); }
+    else { return true; }
 }
 
 
@@ -52,14 +54,18 @@ bool ModeLand::init(bool ignore_checks)
 // should be called at 100hz or more
 void ModeLand::run()
 {
-    if (control_position) { gps_run();   }
-    else                  { nogps_run(); }
+    if (control_position)
+    {
+        if (g.landing_type == VEHICLE) { landing_on_moving_vehicle_run(); }
+        else { landing_with_gps_run(); }
+    }
+    else { landing_without_gps_run(); }
 }
 
 
 // LAND CONTROLLER WITH GPS - Horizontal position controlled with loiter controller
 // Frequency: 100hz or more
-void ModeLand::gps_run()
+void ModeLand::landing_with_gps_run()
 {
     // height_above_ground_cm = copter.current_loc.alt;
     height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
@@ -81,7 +87,6 @@ void ModeLand::gps_run()
     {
         make_safe_ground_handling();
         loiter_nav->init_target();
-        //gcs().send_text(MAV_SEVERITY_CRITICAL, "Making safe ground handling...");
     }
     else //still flying
     {
@@ -100,9 +105,135 @@ void ModeLand::gps_run()
 }
 
 
+// LAND CONTROLLER WITH GPS TO LANDING ON MOVING TARGET - Guided mode commands for horizontal control and standard z-controller for altitude
+// Frequency: 100hz or more
+void ModeLand::landing_on_moving_vehicle_run()
+{
+
+    // SEARCH FOR LANDING TARGET (WITH MAVLINK ID OF GROUND VEHICLE):
+    
+    // Vector3f desired_velocity_neu_cms;
+    Vector2f desired_velocity_ne_cms;
+    bool use_yaw = false;
+    float yaw_cd = 0.0f;
+
+    Vector3f dist_vec;       // vector to lead vehicle
+    Vector3f dist_vec_offs;  // vector to lead vehicle + offset
+    Vector3f vel_of_target;  // velocity of lead vehicle
+    if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target)) {
+        
+        // Convert dist_vec_offs to cm in NEU
+        // const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
+        const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Horizontal dist to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y);
+
+        // Calculate desired velocity vector in cm/s in NEU
+        const float kp = g2.follow.get_pos_p().kP();
+        desired_velocity_ne_cms.x =  (vel_of_target.x * 100.0f) + (dist_vec_offs_ne.x * kp);
+        desired_velocity_ne_cms.y =  (vel_of_target.y * 100.0f) + (dist_vec_offs_ne.y * kp);
+        // desired_velocity_neu_cms.z = (-vel_of_target.z * 100.0f) + (dist_vec_offs_neu.z * kp);
+
+        // Scale desired velocity to stay within horizontal speed limit
+        float desired_speed_xy = safe_sqrt(sq(desired_velocity_ne_cms.x) + sq(desired_velocity_ne_cms.y));
+        if (!is_zero(desired_speed_xy) && (desired_speed_xy > pos_control->get_max_speed_xy_cms())) {
+            const float scalar_xy = pos_control->get_max_speed_xy_cms() / desired_speed_xy;
+            desired_velocity_ne_cms.x *= scalar_xy;
+            desired_velocity_ne_cms.y *= scalar_xy;
+            desired_speed_xy = pos_control->get_max_speed_xy_cms();
+        }
+
+        // limit desired velocity to be between maximum climb and descent rates
+        // desired_velocity_neu_cms.z = constrain_float(desired_velocity_neu_cms.z, -fabsf(pos_control->get_max_speed_down_cms()), pos_control->get_max_speed_up_cms());
+
+        // Create unit vector towards target position (i.e. vector to lead vehicle + offset)
+        // Vector3f dir_to_target_neu = dist_vec_offs_neu;
+        Vector2f dir_to_target_ne = dist_vec_offs_ne;
+        const float dir_to_target_ne_len = dir_to_target_ne.length();
+        if (!is_zero(dir_to_target_ne_len)) { dir_to_target_ne /= dir_to_target_ne_len; }
+
+        // Create horizontal desired velocity vector and unit vector towards target (required for slow down calculations)
+        Vector2f desired_velocity_xy_cms(desired_velocity_ne_cms.x, desired_velocity_ne_cms.y);
+        Vector2f dir_to_target_xy(desired_velocity_xy_cms.x, desired_velocity_xy_cms.y);
+        if (!dir_to_target_xy.is_zero()) { dir_to_target_xy.normalize(); }
+
+        // slow down horizontally as we approach target (use 1/2 of maximum deceleration for gentle slow down)
+        const float dist_to_target_xy = Vector2f(dist_vec_offs_ne.x, dist_vec_offs_ne.y).length();
+        copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
+        // copy horizontal velocity limits back to 3d vector
+        // copy horizontal velocity limits back to 2d vector
+        desired_velocity_ne_cms.x = desired_velocity_xy_cms.x;
+        desired_velocity_ne_cms.y = desired_velocity_xy_cms.y;
+
+        // limit vertical desired_velocity_neu_cms to slow as we approach target (we use 1/2 of maximum deceleration for gentle slow down)
+        // const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss() * 0.5f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
+        // desired_velocity_neu_cms.z = constrain_float(desired_velocity_neu_cms.z, -des_vel_z_max, des_vel_z_max);
+        // limit the velocity for obstacle/fence avoidance
+        // copter.avoid.adjust_velocity(desired_velocity_neu_cms, pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss(), pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss(), G_Dt);
+
+        // calculate vehicle heading
+        switch (g2.follow.get_yaw_behave()) {
+            case AP_Follow::YAW_BEHAVE_FACE_LEAD_VEHICLE: {
+                if (dist_vec.xy().length_squared() > 1.0) {
+                    yaw_cd = get_bearing_cd(Vector2f{}, dist_vec.xy());
+                    use_yaw = true;
+                }
+                break;
+            }
+            case AP_Follow::YAW_BEHAVE_SAME_AS_LEAD_VEHICLE: {
+                float target_hdg = 0.0f;
+                if (g2.follow.get_target_heading_deg(target_hdg)) {
+                    yaw_cd = target_hdg * 100.0f;
+                    use_yaw = true;
+                }
+                break;
+            }
+            case AP_Follow::YAW_BEHAVE_DIR_OF_FLIGHT: {
+                if (desired_velocity_ne_cms.length_squared() > (100.0 * 100.0)) {
+                    yaw_cd = get_bearing_cd(Vector2f{}, desired_velocity_ne_cms);
+                    use_yaw = true;
+                }
+                break;
+            }
+            case AP_Follow::YAW_BEHAVE_NONE:
+            default:
+               break;
+        }
+    }
+    else
+    {
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target...");
+    }
+
+    // re-use guided mode's velocity controller (takes NEU)
+    // ModeGuided::set_velocity(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, false);
+    ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, false);
+    ModeGuided::run();
+
+    // POST-LANDING SAFETY CHECKS:
+    if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
+    {
+        copter.arming.disarm(AP_Arming::Method::LANDED);
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground idle detected; Disarming drone...");
+    }
+
+    // FLIGHT CONTROLLER DURING LANDING SEQUENCE:
+    if (is_disarmed_or_landed())
+    {
+        make_safe_ground_handling();
+        loiter_nav->init_target();
+        return;
+    }
+    else //still flying
+    {
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED); // set motors to full range
+        land_run_vertical_control(land_pause); // Call vertical controller for landing
+    }
+}
+
+
 // LAND CONTROLLER WITH NO GPS - Pilot controls roll and pitch angles
 // Frequency: 100hz or more
-void ModeLand::nogps_run()
+void ModeLand::landing_without_gps_run()
 {
     float   target_roll = 0.0f, target_pitch = 0.0f, target_yaw_rate = 0;
     // height_above_ground_cm = copter.current_loc.alt;
@@ -125,7 +256,6 @@ void ModeLand::nogps_run()
     if (is_disarmed_or_landed())
     {
         make_safe_ground_handling();
-        // gcs().send_text(MAV_SEVERITY_CRITICAL, "Making safe ground handling...");
     }
     else //still flying
     {
@@ -142,7 +272,8 @@ void ModeLand::nogps_run()
     // Managing buffer for rangefinder distances:
     for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
     RFdistance_buffer[0] = height_above_ground_cm;
-    // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF buffer: %4ld, %4ld, %4ld, %4ld, %4ld", RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4]);
+    // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF buffer: %4ld, %4ld, %4ld, %4ld, %4ld", ...
+    //       ... RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4]);
 }
 
 
@@ -200,7 +331,7 @@ void ModeLand::run_landing_state_machine()
 
             break;
 
-        case DESCENT_WITHOUT_RF:
+        case DESCENT_WITHOUT_RF: // Descent without rangefinder - use IMU only to detect ground
 
             if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT_WITHOUT_RF"); }
 
@@ -215,17 +346,14 @@ void ModeLand::run_landing_state_machine()
             countdown_chrono = millis() - countdown_start;
             gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono );
 
-            if ( is_quad_touching_ground() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant la fin du countdown
-            if ( is_quad_tilting() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant
-            
+            if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant la fin du countdown
+
             if ( countdown_chrono >= (uint32_t)countdown_duration )
             {
                 state = DROPPING;
                 dropping_start = millis();
                 i = 0;
             }
-
-            // TO ADD : If is_quad_tilting() { state = TOUCHING_GROUND; i = 0; } // Quad reached ground before the end of the countdown
 
             break;
 
@@ -344,6 +472,7 @@ bool ModeLand::RF_glitch_detected()
 
     int max = RFdistance_buffer[0];
     int min = RFdistance_buffer[0];
+
     for (int c = 0; c < 10; c++)
     {
         if (RFdistance_buffer[c] > max) { max = RFdistance_buffer[c]; }
@@ -351,11 +480,10 @@ bool ModeLand::RF_glitch_detected()
     }
     int delta_max = abs(height_above_ground_cm - max);
     int delta_min = abs(height_above_ground_cm - min);
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Delta min et max: %4d, %4d", delta_min, delta_max);
 
     if (delta_min >= 75 || delta_max >= 75) // Difference of 75cm between two consecutive rangefinder values
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder glitch detected - delta too high!");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder glitch detected - Delta too high!");
         return true;
     }
     else
@@ -373,12 +501,11 @@ bool ModeLand::drone_was_too_far_from_ground() // To prevent a rangefinder glitc
     }
     if (max >= 100) //All the buffered values must be below 200 cm to consider the drone "not too far from ground"
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Drone too far from ground to land... GLITCH DETECTED!");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Landing glitch detected - Drone to far to land");
         return true;
     }
     else
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Everything is fine...");
         return false;
     }
 }
@@ -424,11 +551,10 @@ bool ModeLand::is_quad_sliding()
     {
         condition1 = ( vel_ned.length() >= 0.35 ); // 35 cm/s
     }
-    
-    
+
     //Check to make sure not rotating (flipping)
     bool condition2 = ( ahrs.get_gyro_latest().length() <= 0.6 );
-    return condition1 && condition2; //m/s
+    return condition1 && condition2; // m/s
 }
 
 bool ModeLand::quad_has_landed()
@@ -493,8 +619,8 @@ void ModeLand::do_not_use_GPS()
 {
     control_position = false;
 }
-//-------------------------------------------------------------------------
 
+//-------------------------------------------------------------------------
 // set_mode_land_with_pause - sets mode to LAND and triggers 4 second delay before descent starts
 //  this is always called from a failsafe so we trigger notification to pilot
 void Copter::set_mode_land_with_pause(ModeReason reason)
@@ -505,6 +631,7 @@ void Copter::set_mode_land_with_pause(ModeReason reason)
     // alert pilot to mode change
     AP_Notify::events.failsafe_mode_change = 1;
 }
+
 //-------------------------------------------------------------------------
 // landing_with_GPS - returns true if vehicle is landing using GPS
 bool Copter::landing_with_GPS()
@@ -517,151 +644,3 @@ bool Copter::landing_with_GPS()
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
 
-// OLD LAND MODE WITH NO MODIFICATIONS
-//-------------------------------------------------------------------------
-//
-// // land_init - initialize land controller
-// bool ModeLand::init(bool ignore_checks)
-// {
-
-//     gcs().send_text(MAV_SEVERITY_CRITICAL, "hello world! %5.3f", (double)3.142f);
-//     // check if we have GPS and decide which LAND we're going to do
-//     control_position = copter.position_ok();
-//     if (control_position) {
-//         // set target to stopping point
-//         Vector2f stopping_point;
-//         loiter_nav->get_stopping_point_xy(stopping_point);
-//         loiter_nav->init_target(stopping_point);
-//     }
-
-//     // set vertical speed and acceleration limits
-//     pos_control->set_max_speed_accel_z(wp_nav->get_default_speed_down(), wp_nav->get_default_speed_up(), wp_nav->get_accel_z());
-//     pos_control->set_correction_speed_accel_z(wp_nav->get_default_speed_down(), wp_nav->get_default_speed_up(), wp_nav->get_accel_z());
-//     pos_control->set_max_speed_accel_xy(wp_nav->get_default_speed_xy(), wp_nav->get_wp_acceleration());
-
-//     // initialise the vertical position controller
-//     if (!pos_control->is_active_z()) {
-//         pos_control->init_z_controller();
-//     }
-
-//     land_start_time = millis();
-//     land_pause = false;
-
-//     // reset flag indicating if pilot has applied roll or pitch inputs during landing
-//     copter.ap.land_repo_active = false;
-
-//     // initialise yaw
-//     auto_yaw.set_mode(AUTO_YAW_HOLD);
-
-// #if LANDING_GEAR_ENABLED == ENABLED
-//     // optionally deploy landing gear
-//     copter.landinggear.deploy_for_landing();
-// #endif
-
-// #if AC_FENCE == ENABLED
-//     // disable the fence on landing
-//     copter.fence.auto_disable_fence_for_landing();
-// #endif
-
-// #if PRECISION_LANDING == ENABLED
-//     // initialise precland state machine
-//     copter.precland_statemachine.init();
-// #endif
-
-//     return true;
-// }
-
-// // land_run - runs the land controller
-// // should be called at 100hz or more
-// void ModeLand::run()
-// {
-//     if (control_position) {
-//         gps_run();
-//     } else {
-//         nogps_run();
-//     }
-// }
-
-// // land_gps_run - runs the land controller
-// //      horizontal position controlled with loiter controller
-// //      should be called at 100hz or more
-// void ModeLand::gps_run()
-// {
-//     // disarm when the landing detector says we've landed
-//     if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE) {
-//         copter.arming.disarm(AP_Arming::Method::LANDED);
-//     }
-
-//     // Land State Machine Determination
-//     if (is_disarmed_or_landed()) {
-//         make_safe_ground_handling();
-//         loiter_nav->clear_pilot_desired_acceleration();
-//         loiter_nav->init_target();
-//     } else {
-//         // set motors to full range
-//         motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
-
-//         // pause before beginning land descent
-//         if (land_pause && millis()-land_start_time >= LAND_WITH_DELAY_MS) {
-//             land_pause = false;
-//         }
-
-//         // run normal landing or precision landing (if enabled)
-//         land_run_normal_or_precland(land_pause);
-//     }
-// }
-
-// // land_nogps_run - runs the land controller
-// //      pilot controls roll and pitch angles
-// //      should be called at 100hz or more
-// void ModeLand::nogps_run()
-// {
-//     float target_roll = 0.0f, target_pitch = 0.0f;
-//     float target_yaw_rate = 0;
-
-//     // process pilot inputs
-//     if (!copter.failsafe.radio) {
-//         if ((g.throttle_behavior & THR_BEHAVE_HIGH_THROTTLE_CANCELS_LAND) != 0 && copter.rc_throttle_control_in_filter.get() > LAND_CANCEL_TRIGGER_THR){
-//             AP::logger().Write_Event(LogEvent::LAND_CANCELLED_BY_PILOT);
-//             // exit land if throttle is high
-//             copter.set_mode(Mode::Number::ALT_HOLD, ModeReason::THROTTLE_LAND_ESCAPE);
-//         }
-
-//         if (g.land_repositioning) {
-//             // apply SIMPLE mode transform to pilot inputs
-//             update_simple_mode();
-
-//             // get pilot desired lean angles
-//             get_pilot_desired_lean_angles(target_roll, target_pitch, copter.aparm.angle_max, attitude_control->get_althold_lean_angle_max());
-//         }
-
-//         // get pilot's desired yaw rate
-//         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
-//         if (!is_zero(target_yaw_rate)) {
-//             auto_yaw.set_mode(AUTO_YAW_HOLD);
-//         }
-//     }
-
-//     // disarm when the landing detector says we've landed
-//     if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE) {
-//         copter.arming.disarm(AP_Arming::Method::LANDED);
-//     }
-
-//     // Land State Machine Determination
-//     if (is_disarmed_or_landed()) {
-//         make_safe_ground_handling();
-//     } else {
-//         // set motors to full range
-//         motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
-
-//         // pause before beginning land descent
-//         if (land_pause && millis()-land_start_time >= LAND_WITH_DELAY_MS) {
-//             land_pause = false;
-//         }
-
-//         land_run_vertical_control(land_pause);
-//     }
-
-//     // call attitude controller
-//     attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
-// }

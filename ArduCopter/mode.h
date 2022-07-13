@@ -934,6 +934,10 @@ public:
     void set_accel(const Vector3f& acceleration, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
     void set_velocity(const Vector3f& velocity, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
     void set_velaccel(const Vector3f& velocity, const Vector3f& acceleration, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
+    // ADDED FUNCTION FOR LANDING ON VEHICLE:
+    void set_velocity_ne(const Vector2f& velocity_ne, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
+    void set_velaccel_ne(const Vector2f& velocity_ne, const Vector2f& acceleration_ne, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
+    /////////////
     bool set_destination_posvel(const Vector3f& destination, const Vector3f& velocity, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false);
     bool set_destination_posvelaccel(const Vector3f& destination, const Vector3f& velocity, const Vector3f& acceleration, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false);
 
@@ -941,6 +945,10 @@ public:
     const Vector3p& get_target_pos() const;
     const Vector3f& get_target_vel() const;
     const Vector3f& get_target_accel() const;
+    // ADDED FUNCTION FOR LANDING ON VEHICLE:
+    const Vector2f& get_target_vel_ne() const;
+    const Vector2f& get_target_accel_ne() const;
+    /////////
 
     // returns true if GUIDED_OPTIONS param suggests SET_ATTITUDE_TARGET's "thrust" field should be interpreted as thrust instead of climb rate
     bool set_attitude_target_provides_thrust() const;
@@ -965,6 +973,9 @@ public:
         Pos,
         PosVelAccel,
         VelAccel,
+        // ADDED FOR LANDING ON VEHICLE
+        VelAccel_NE,
+        ///////////////
         Accel,
         Angle,
     };
@@ -1010,14 +1021,23 @@ private:
     void wp_control_run();
 
     void pva_control_start();
+    // FOR LANDING ON VEHICLE:
+    void pva_ne_control_start();
+    ////////////
     void pos_control_start();
     void accel_control_start();
     void velaccel_control_start();
+    // FOR LANDING ON VEHICLE:
+    void velaccel_ne_control_start();
+    ////////////
     void posvelaccel_control_start();
     void takeoff_run();
     void pos_control_run();
     void accel_control_run();
     void velaccel_control_run();
+    // ADDED FUNCTION FOR LANDING ON VEHICLE:
+    void velaccel_ne_control_run();
+    //////////////////
     void pause_control_run();
     void posvelaccel_control_run();
     void set_yaw_state(bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_angle);
@@ -1056,11 +1076,11 @@ private:
 };
 
 
-class ModeLand : public Mode {
+class ModeLand : public ModeGuided {
 
 public:
     // inherit constructor
-    using Mode::Mode;
+    using ModeGuided::Mode;
     Number mode_number() const override { return Number::LAND; }
 
     bool init(bool ignore_checks) override;
@@ -1076,6 +1096,14 @@ public:
     // returns true if LAND mode is trying to control X/Y position
     bool controlling_position() const { return control_position; }
     void set_land_pause(bool new_value) { land_pause = new_value; }
+
+        // Auto Pilot Modes enumeration
+    enum LandingType : int8_t {
+        ROOF    = 0,
+        ICE     = 1,
+        BOAT    = 2,
+        VEHICLE = 3,
+    };
 
     enum state_stateMachine
     {
@@ -1105,8 +1133,9 @@ protected:
 
 private:
 
-    void gps_run();
-    void nogps_run();
+    void landing_with_gps_run();
+    void landing_on_moving_vehicle_run();
+    void landing_without_gps_run();
 
     bool do_prelanding_verifications();
     bool RF_glitch_detected();

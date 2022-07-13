@@ -594,13 +594,17 @@
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
-// DEFAULT VALUE FOR REVERSE THRUST PWM DURING LANDING SEQUENCE
+// DEFAULT VALUES OF PARAMETERS ADDED FOR LANDING TECH
 #ifndef RVT_PWM_DEFAULT
  # define RVT_PWM_DEFAULT          1500  // default value for reverse thrust PWM
 #endif
 
 #ifndef SHUTDOWN_HEIGHT_DEFAULT
  # define SHUTDOWN_HEIGHT_DEFAULT  30    // default value for landing shutdown height, in cm
+#endif
+
+#ifndef LANDING_TYPE_DEFAULT
+ # define LANDING_TYPE_DEFAULT  1    // default value for landing shutdown height, in cm
 #endif
 //////////////////////////////////////////////////////////////////////////////
 

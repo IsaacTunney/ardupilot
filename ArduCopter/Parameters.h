@@ -379,6 +379,7 @@ public:
 
         k_param_rvt_pwm = 258, // Param to set PWM of motors during REVERSE THRUST (landing sequence)
         k_param_shutdown_height_cm = 259,
+        k_param_landing_type = 260,
         
 
         // the k_param_* space is 9-bits in size
@@ -458,9 +459,10 @@ public:
     AP_Float        fs_ekf_thresh;
     AP_Int16        gcs_pid_mask;
 
-    // New parameters added for RVT:
+    // New parameters added for landing technology:
     AP_Int16        rvt_pwm;
     AP_Int16        shutdown_height_cm;
+    AP_Int8         landing_type;
 
 // ********** COMMENTED OUT FOR BENCH TEST MODE **********
 // #if MODE_THROW_ENABLED == ENABLED
