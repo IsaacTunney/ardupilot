@@ -1,0 +1,19 @@
+vehicle 1
+mode guided
+arm throttle
+takeoff 5
+
+vehicle 2
+mode guided
+arm throttle
+takeoff 20
+param set landing_type 3
+param show foll_*
+
+vehicle 1
+# Set position to fly to manually on map
+
+vehicle 2
+mode land
+
+

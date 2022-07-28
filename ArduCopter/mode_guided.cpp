@@ -962,7 +962,7 @@ void ModeGuided::velaccel_ne_control_run()
         guided_vel_target_ne_cms.x = pos_control->get_vel_desired_cms().x;
         guided_vel_target_ne_cms.y = pos_control->get_vel_desired_cms().y;
     }
-    pos_control->input_vel_accel_xy(guided_vel_target_cms.xy(), guided_accel_target_cmss.xy(), false);
+    pos_control->input_vel_accel_xy(guided_vel_target_ne_cms, guided_accel_target_ne_cmss, false);
     if (!stabilizing_vel_xy() && !do_avoid) {
         // set position and velocity errors to zero
         pos_control->stop_vel_xy_stabilisation();
@@ -976,7 +976,7 @@ void ModeGuided::velaccel_ne_control_run()
     pos_control->update_xy_controller();
     // pos_control->update_z_controller(); This controller will be called fron the land_vertical_control_run function in landing mode.
 
-    // call attitude controller
+    // call attitude controller for yaw
     if (auto_yaw.mode() == AUTO_YAW_HOLD) { // roll & pitch from position controller, yaw rate from pilot
         attitude_control->input_thrust_vector_rate_heading(pos_control->get_thrust_vector(), target_yaw_rate);
     } else if (auto_yaw.mode() == AUTO_YAW_RATE) { // roll & pitch from position controller, yaw rate from mavlink command or mission item

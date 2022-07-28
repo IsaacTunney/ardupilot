@@ -62,7 +62,7 @@ BASE_DEFAULTS="$ROOTDIR/Tools/autotest/default_params/copter.parm"
 }
 
 # Set number of extra copters to be simulated, change this for increasing the count
-NCOPTERS="4"
+NCOPTERS="1"
 
 # start up main (leader) copter in the subdir (copter1)
 echo "Starting copter 1"
@@ -92,7 +92,9 @@ for i in $(seq $NCOPTERS); do
     cat <<EOF > copter$i/follow.parm
 SYSID_THISMAV $SYSID
 FOLL_ENABLE 1
-FOLL_OFS_X $(echo "-5*$i" | bc -l)
+# FOLL_OFS_X $(echo "-5*$i" | bc -l)
+FOLL_OFS_X -2
+FOLL_OFS_Z -5
 FOLL_OFS_TYPE 1
 FOLL_SYSID 1
 FOLL_DIST_MAX 1000

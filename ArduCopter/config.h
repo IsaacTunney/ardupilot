@@ -604,7 +604,7 @@
 #endif
 
 #ifndef LANDING_TYPE_DEFAULT
- # define LANDING_TYPE_DEFAULT  1    // default value for landing shutdown height, in cm
+ # define LANDING_TYPE_DEFAULT  0    // default value for landing shutdown height, in cm
 #endif
 //////////////////////////////////////////////////////////////////////////////
 
