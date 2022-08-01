@@ -124,8 +124,12 @@ void ModeLand::landing_on_moving_vehicle_run()
         // Convert dist_vec_offs to cm in NE
         // const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
         const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Horizontal dist to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y);
 
+        if (i%100 == 0)
+        {
+            //gcs().send_text(MAV_SEVERITY_CRITICAL, "Horizontal dist to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y);
+        }
+                
         // Calculate desired velocity vector in cm/s in NEU
         const float kp = g2.follow.get_pos_p().kP();
         desired_velocity_ne_cms.x =  (vel_of_target.x * 100.0f) + (dist_vec_offs_ne.x * kp);
@@ -163,8 +167,11 @@ void ModeLand::landing_on_moving_vehicle_run()
         desired_velocity_ne_cms.x = desired_velocity_xy_cms.x;
         desired_velocity_ne_cms.y = desired_velocity_xy_cms.y;
 
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Desired velocity NE: x:%4.3f cm/s; y:%4.3f cm/s", desired_velocity_ne_cms.x, desired_velocity_ne_cms.y);
-        gcs().send_text(MAV_SEVERITY_ALERT, "============================");
+        if (i%100 == 0)
+        {
+            //gcs().send_text(MAV_SEVERITY_CRITICAL, "Desired velocity NE: x:%4.3f m/s; y:%4.3f m/s", desired_velocity_ne_cms.x/100, desired_velocity_ne_cms.y/100);
+        }
+
 
         // limit vertical desired_velocity_neu_cms to slow as we approach target (we use 1/2 of maximum deceleration for gentle slow down)
         // const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss() * 0.5f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
@@ -206,10 +213,9 @@ void ModeLand::landing_on_moving_vehicle_run()
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target...");
     }
 
-    // re-use guided mode's velocity controller (takes NEU)
-    // ModeGuided::set_velocity(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, false);
-    ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, false);
-    ModeGuided::run();
+
+
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Made it to here...!");
 
     // POST-LANDING SAFETY CHECKS:
     if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
@@ -227,14 +233,24 @@ void ModeLand::landing_on_moving_vehicle_run()
     }
     else //still flying
     {
-        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED); // set motors to full range
-        
-        if (dist_vec_offs.x <= 1.0) //If drone is within landing range of target, start descent!
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED); // set motors to full range     
+        //gcs().send_text(MAV_SEVERITY_CRITICAL, "Offset: x:%4.3f m; y:%4.3f m.", abs(dist_vec_offs.x), abs(dist_vec_offs.y));
+
+        if (abs(dist_vec_offs.x) <= 1.0 && abs(dist_vec_offs.y) <= 1.0) // If drone is within landing range of target, start descent!
         {
             gcs().send_text(MAV_SEVERITY_CRITICAL, "Target in landing range. Starting descent!");
             land_run_vertical_control(land_pause); // Call vertical controller for landing
         }
     }
+
+    land_run_vertical_control(land_pause); // Call vertical controller for landing
+
+    // re-use guided mode's velocity controller (takes NEU)
+    // ModeGuided::set_velocity(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, false);
+    ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, false);
+    ModeGuided::run();
+
+    i++;
 }
 
 

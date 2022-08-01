@@ -6,8 +6,9 @@ takeoff 5
 vehicle 2
 mode guided
 arm throttle
-takeoff 20
+takeoff 55
 param set landing_type 3
+
 param show foll_*
 
 vehicle 1
