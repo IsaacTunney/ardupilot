@@ -1084,6 +1084,7 @@ public:
     Number mode_number() const override { return Number::LAND; }
 
     bool init(bool ignore_checks) override;
+    void exit() override;
     void run() override;
 
     bool requires_GPS() const override { return false; }
@@ -1126,16 +1127,30 @@ public:
         PROACTIVE,
     }; state_landingMode landingMode;
 
+    enum state_landingOnVehicle
+    {
+        FOLLOWING,
+        READY_FOR_DESCENT,
+        LANDING,
+    } landingOnVehicle_state, landingOnVehicle_previousState;
+
 protected:
 
     const char *name() const override { return "LAND"; }
     const char *name4() const override { return "LAND"; }
+    uint32_t last_log_ms;   // system time of last time desired velocity was logging
 
 private:
 
     void landing_with_gps_run();
     void landing_on_moving_vehicle_run();
     void landing_without_gps_run();
+
+    void follow_target_3D();
+    void follow_target_2D();
+    bool target_over_vehicle_has_been_reached();
+    bool user_has_allowed_landing_on_vehicle();
+
 
     bool do_prelanding_verifications();
     bool RF_glitch_detected();
@@ -1182,6 +1197,8 @@ private:
     bool     activate_rvt_countertorque;
 
     bool     land_pause;
+    Vector2f horizontal_dist_from_target_with_offset_cm;
+    bool     switchLandingState;
 
 };
 

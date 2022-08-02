@@ -40,8 +40,6 @@ void ModeFollow::run()
         return;
     }
 
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Starting run loop");
-
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
@@ -160,7 +158,6 @@ void ModeFollow::run()
     }
     // re-use guided mode's velocity controller (takes NEU)
     ModeGuided::set_velocity(desired_velocity_neu_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
-
     ModeGuided::run();
 }
 
