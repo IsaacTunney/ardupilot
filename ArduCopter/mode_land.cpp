@@ -173,7 +173,6 @@ void ModeLand::landing_on_moving_vehicle_run()
     i++;
 }
 
-
 // LAND CONTROLLER WITH NO GPS - Pilot controls roll and pitch angles
 // Frequency: 100hz or more
 void ModeLand::landing_without_gps_run()
@@ -219,7 +218,6 @@ void ModeLand::landing_without_gps_run()
     //       ... RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4]);
 }
 
-
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
@@ -260,29 +258,24 @@ void ModeLand::follow_target_3D()
             desired_velocity_neu_cms.y *= scalar_xy;
             desired_speed_xy = pos_control->get_max_speed_xy_cms();
         }
-
-        // Limit desired velocity to be between maximum climb and descent rates:
         desired_velocity_neu_cms.z = constrain_float(desired_velocity_neu_cms.z, -fabsf(pos_control->get_max_speed_down_cms()), pos_control->get_max_speed_up_cms());
 
-        // Create unit vector towards target position (i.e. vector to lead vehicle + offset):
-        Vector3f dir_to_target_neu = dist_vec_offs_neu;
-        const float dir_to_target_neu_len = dir_to_target_neu.length();
-        if (!is_zero(dir_to_target_neu_len)) { dir_to_target_neu /= dir_to_target_neu_len; }
-
-        // Create horizontal desired velocity vector (required for slow down calculations):
-        Vector2f desired_velocity_xy_cms(desired_velocity_neu_cms.x, desired_velocity_neu_cms.y);
-
-        // Create horizontal unit vector towards target (required for slow down calculations):
-        Vector2f dir_to_target_xy(desired_velocity_xy_cms.x, desired_velocity_xy_cms.y);
-        if (!dir_to_target_xy.is_zero()) { dir_to_target_xy.normalize(); }
-
-        // Slow down horizontally as we approach target (use 1/2 of maximum deceleration for gentle slow down):
-        const float dist_to_target_xy = Vector2f(dist_vec_offs_neu.x, dist_vec_offs_neu.y).length();
-        copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
-        
-        // Copy horizontal velocity limits back to 3d vector:
-        desired_velocity_neu_cms.x = desired_velocity_xy_cms.x;
-        desired_velocity_neu_cms.y = desired_velocity_xy_cms.y;
+        // REMOVED EVERYTHING CONCERNING SLOW DOWN NEAR TARGET (only useful for follow mode):
+        // // Create unit vector towards target position (i.e. vector to lead vehicle + offset):
+        // Vector3f dir_to_target_neu = dist_vec_offs_neu;
+        // const float dir_to_target_neu_len = dir_to_target_neu.length();
+        // if (!is_zero(dir_to_target_neu_len)) { dir_to_target_neu /= dir_to_target_neu_len; }
+        // // Create horizontal desired velocity vector (required for slow down calculations):
+        // Vector2f desired_velocity_xy_cms(desired_velocity_neu_cms.x, desired_velocity_neu_cms.y);
+        // // Create horizontal unit vector towards target (required for slow down calculations):
+        // Vector2f dir_to_target_xy(desired_velocity_xy_cms.x, desired_velocity_xy_cms.y);
+        // if (!dir_to_target_xy.is_zero()) { dir_to_target_xy.normalize(); }
+        // // Slow down horizontally as we approach target (use 1/2 of maximum deceleration for gentle slow down):
+        // const float dist_to_target_xy = Vector2f(dist_vec_offs_neu.x, dist_vec_offs_neu.y).length();
+        // copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
+        // // Copy horizontal velocity limits back to 3d vector:
+        // desired_velocity_neu_cms.x = desired_velocity_xy_cms.x;
+        // desired_velocity_neu_cms.y = desired_velocity_xy_cms.y;
 
         // Limit vertical desired_velocity_neu_cms to slow as we approach target (we use 1/2 of maximum deceleration for gentle slow down):
         const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss() * 0.5f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
@@ -330,6 +323,11 @@ void ModeLand::follow_target_3D()
     else
     {
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target...");
+
+        // If target gets lost during pursuit, tell drone to simply keep its position and do nothing:
+        //
+        // ...
+        //
     }
 
     // Log output at 10hz:
@@ -359,7 +357,7 @@ void ModeLand::follow_target_2D()
         // Convert dist_vec_offs to cm in NE:
         const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
 
-        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Horizontal dist to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y); }
+        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Horizontal dist (NE) to target over vehicle: x:%4.3f m; y:%4.3f m.", dist_vec_offs_ne.x/100.0, dist_vec_offs_ne.y/100.0); }
                 
         // Calculate desired velocity vector in cm/s in NE:
         const float kp = g2.follow.get_pos_p().kP();
@@ -376,21 +374,20 @@ void ModeLand::follow_target_2D()
             desired_speed_xy = pos_control->get_max_speed_xy_cms();
         }
 
-        // Create unit vector towards target position (i.e. vector to lead vehicle + offset):
-        Vector2f dir_to_target_ne = dist_vec_offs_ne;
-        const float dir_to_target_ne_len = dir_to_target_ne.length();
-        if (!is_zero(dir_to_target_ne_len)) { dir_to_target_ne /= dir_to_target_ne_len; }
-
-        // Create horizontal desired velocity vector and unit vector towards target (required for slow down calculations):
-        Vector2f desired_velocity_xy_cms(desired_velocity_ne_cms.x, desired_velocity_ne_cms.y);
-        Vector2f dir_to_target_xy(desired_velocity_xy_cms.x, desired_velocity_xy_cms.y);
-        if (!dir_to_target_xy.is_zero()) { dir_to_target_xy.normalize(); }
-
-        // Slow down horizontally as we approach target (use 1/2 of maximum deceleration for gentle slow down):
-        const float dist_to_target_xy = Vector2f(dist_vec_offs_ne.x, dist_vec_offs_ne.y).length();
-        copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
-        desired_velocity_ne_cms.x = desired_velocity_xy_cms.x;
-        desired_velocity_ne_cms.y = desired_velocity_xy_cms.y;
+        // REMOVED EVERYTHING CONCERNING SLOW DOWN NEAR TARGET (only useful for follow mode):
+        // // Create unit vector towards target position (i.e. vector to lead vehicle + offset):
+        // Vector2f dir_to_target_ne = dist_vec_offs_ne;
+        // const float dir_to_target_ne_len = dir_to_target_ne.length();
+        // if (!is_zero(dir_to_target_ne_len)) { dir_to_target_ne /= dir_to_target_ne_len; }
+        // // Create horizontal desired velocity vector and unit vector towards target (required for slow down calculations):
+        // Vector2f desired_velocity_xy_cms(desired_velocity_ne_cms.x, desired_velocity_ne_cms.y);
+        // Vector2f dir_to_target_xy(desired_velocity_xy_cms.x, desired_velocity_xy_cms.y);
+        // if (!dir_to_target_xy.is_zero()) { dir_to_target_xy.normalize(); }
+        // // Slow down horizontally as we approach target (use 1/2 of maximum deceleration for gentle slow down):
+        // const float dist_to_target_xy = Vector2f(dist_vec_offs_ne.x, dist_vec_offs_ne.y).length();
+        // copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
+        // desired_velocity_ne_cms.x = desired_velocity_xy_cms.x;
+        // desired_velocity_ne_cms.y = desired_velocity_xy_cms.y;
 
         // Calculate vehicle heading:
         switch (g2.follow.get_yaw_behave())
@@ -430,6 +427,11 @@ void ModeLand::follow_target_2D()
     else
     {
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target...");
+
+        // If target gets lost during pursuit, tell drone to simply keep its position and do nothing:
+        //
+        // ...
+        //
     }
 
     // Log output at 10hz:
@@ -437,22 +439,14 @@ void ModeLand::follow_target_2D()
     bool log_request = false;
     if ((now - last_log_ms >= 100) || (last_log_ms == 0)) { log_request = true; last_log_ms = now; }
 
-    // Post-landing safety checks:
-    if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
-    {
-        copter.arming.disarm(AP_Arming::Method::LANDED);
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground idle detected; Disarming drone...");
-    }
-
     ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
     ModeGuided::run();
 
 }
 
-
 bool ModeLand::target_over_vehicle_has_been_reached()
 {
-    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 100.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 100.0) // If drone is within landing range of target, start descent!
+    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 100.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 100.0) // If drone is within landing range of target (100 cm square), start descent!
     {
         return false;
     }
