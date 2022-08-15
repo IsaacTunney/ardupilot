@@ -1198,6 +1198,7 @@ private:
 
     bool     land_pause;
     Vector2f horizontal_dist_from_target_with_offset_cm;
+    bool     target_acquired;
     bool     switchLandingState;
 
 };
@@ -1847,6 +1848,8 @@ protected:
     int32_t wp_bearing() const override;
 
     uint32_t last_log_ms;   // system time of last time desired velocity was logging
+
+    int i;
 };
 
 class ModeZigZag : public Mode {        

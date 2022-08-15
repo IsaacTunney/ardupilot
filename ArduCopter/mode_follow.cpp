@@ -22,6 +22,8 @@ bool ModeFollow::init(const bool ignore_checks)
         return false;
     }
 
+    i = 0;
+
     // re-use guided mode
     return ModeGuided::init(ignore_checks);
 }
@@ -60,7 +62,7 @@ void ModeFollow::run()
         // convert dist_vec_offs to cm in NEU
         const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
         
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Distance to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y);
+        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Distance to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y); }
 
         // calculate desired velocity vector in cm/s in NEU
         const float kp = g2.follow.get_pos_p().kP();
@@ -147,7 +149,7 @@ void ModeFollow::run()
     }
     else
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); 
+        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
     }
 
     // log output at 10hz
@@ -160,6 +162,8 @@ void ModeFollow::run()
     // re-use guided mode's velocity controller (takes NEU)
     ModeGuided::set_velocity(desired_velocity_neu_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
     ModeGuided::run();
+
+    i++;
 }
 
 uint32_t ModeFollow::wp_distance() const

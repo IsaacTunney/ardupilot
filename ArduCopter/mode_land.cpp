@@ -19,6 +19,7 @@ bool ModeLand::init(bool ignore_checks)
     if (control_position && !pos_control->is_active_xy()) { pos_control->init_xy_controller(); }
     if ( !pos_control->is_active_z() ) { pos_control->init_z_controller(); }
 
+    target_acquired                = false;
     state                          = INIT;
     landingOnVehicle_state         = FOLLOWING;
     landingOnVehicle_previousState = FOLLOWING;
@@ -77,6 +78,7 @@ void ModeLand::run()
         else { landing_with_gps_run(); }
     }
     else { landing_without_gps_run(); }
+    i++;
 }
 
 //-------------------------------------------------------------------------
@@ -92,7 +94,6 @@ void ModeLand::landing_with_gps_run()
 
     // STATE MACHINE:
     run_landing_state_machine();
-    i++;
 
     // POST-LANDING SAFETY CHECKS:
     // Disarm when the landing detector says we've landed
@@ -124,7 +125,6 @@ void ModeLand::landing_with_gps_run()
     // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF buffer: %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld", RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4], RFdistance_buffer[5], RFdistance_buffer[6], RFdistance_buffer[7], RFdistance_buffer[8], RFdistance_buffer[9]);
 }
 
-
 // LAND CONTROLLER WITH GPS FOR LANDING ON MOVING TARGET - Guided mode commands for horizontal control and standard z-controller for altitude
 // Frequency: 100hz or more
 void ModeLand::landing_on_moving_vehicle_run()
@@ -134,7 +134,7 @@ void ModeLand::landing_on_moving_vehicle_run()
     {
         case FOLLOWING:
             follow_target_3D();
-            if ( target_over_vehicle_has_been_reached() ) { landingOnVehicle_state = READY_FOR_DESCENT; }
+            if (target_acquired == true && target_over_vehicle_has_been_reached() ) { landingOnVehicle_state = READY_FOR_DESCENT; }
             break;
 
         case READY_FOR_DESCENT: //Drone is within GPS landing area
@@ -169,8 +169,6 @@ void ModeLand::landing_on_moving_vehicle_run()
     // Managing the switch of landing states:
     if (landingOnVehicle_previousState != landingOnVehicle_state) { switchLandingState = true; }
     landingOnVehicle_previousState = landingOnVehicle_state;
-
-    i++;
 }
 
 // LAND CONTROLLER WITH NO GPS - Pilot controls roll and pitch angles
@@ -185,7 +183,6 @@ void ModeLand::landing_without_gps_run()
 
     // STATE MACHINE:
     run_landing_state_machine();
-    i++;
 
     // POST-LANDING SAFETY CHECKS: Landing detector
     if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
@@ -237,6 +234,8 @@ void ModeLand::follow_target_3D()
 
     if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target))
     {
+        target_acquired = true;
+
         // Convert dist_vec_offs to cm in NEU:
         const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
 
@@ -322,12 +321,14 @@ void ModeLand::follow_target_3D()
     }
     else
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target...");
+        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
+        target_acquired = false;
 
         // If target gets lost during pursuit, tell drone to simply keep its position and do nothing:
-        //
-        // ...
-        //
+        desired_velocity_neu_cms.x = 0;
+        desired_velocity_neu_cms.y = 0;
+        desired_velocity_neu_cms.z = 0;
+
     }
 
     // Log output at 10hz:
@@ -353,6 +354,8 @@ void ModeLand::follow_target_2D()
     Vector3f dist_vec_offs;  // vector to lead vehicle + offset
     Vector3f vel_of_target;  // velocity of lead vehicle
     if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target)) {
+
+        target_acquired = true;
         
         // Convert dist_vec_offs to cm in NE:
         const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
@@ -426,12 +429,12 @@ void ModeLand::follow_target_2D()
     }
     else
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target...");
+        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
+        target_acquired = false;
 
         // If target gets lost during pursuit, tell drone to simply keep its position and do nothing:
-        //
-        // ...
-        //
+        desired_velocity_ne_cms.x = 0;
+        desired_velocity_ne_cms.y = 0;
     }
 
     // Log output at 10hz:
@@ -442,11 +445,13 @@ void ModeLand::follow_target_2D()
     ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
     ModeGuided::run();
 
+    mainLoopCount++;
+
 }
 
 bool ModeLand::target_over_vehicle_has_been_reached()
 {
-    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 100.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 100.0) // If drone is within landing range of target (100 cm square), start descent!
+    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 10.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 10.0) // If drone is within landing range of target (100 cm square), start descent!
     {
         return false;
     }
@@ -624,7 +629,7 @@ void ModeLand::run_landing_state_machine()
             if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
 
             break;
-    }  
+    } 
 }
 
 bool ModeLand::do_prelanding_verifications()
