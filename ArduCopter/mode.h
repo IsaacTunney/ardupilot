@@ -1176,6 +1176,7 @@ private:
     uint32_t land_start_time;
     uint32_t land_loop_time;
     int      i; // State-machine iteration counter
+    int      runCount;
 
     bool     start_countdown_before_drop;
     uint32_t reverse_thrust_timer;

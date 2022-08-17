@@ -25,6 +25,7 @@ bool ModeLand::init(bool ignore_checks)
     landingOnVehicle_previousState = FOLLOWING;
     switchLandingState             = false;
     i                              = 1; // counter
+    runCount                       = 0; // Main run loop iterator
 
     shutdown_motors             = false;
     activate_rvt_countertorque  = false;
@@ -61,10 +62,15 @@ bool ModeLand::init(bool ignore_checks)
 }
 
 
-// Perform cleanup required when leaving follow mode
+// Perform cleanup required when leaving mode
 void ModeLand::exit()
 {
     g2.follow.clear_offsets_if_required();
+    shutdown_motors             = false;
+    activate_rvt_countertorque  = false;
+    activate_rvt                = false;
+    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+
 }
 
 
@@ -79,6 +85,7 @@ void ModeLand::run()
     }
     else { landing_without_gps_run(); }
     i++;
+    runCount++;    
 }
 
 //-------------------------------------------------------------------------
@@ -125,52 +132,6 @@ void ModeLand::landing_with_gps_run()
     // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF buffer: %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld", RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4], RFdistance_buffer[5], RFdistance_buffer[6], RFdistance_buffer[7], RFdistance_buffer[8], RFdistance_buffer[9]);
 }
 
-// LAND CONTROLLER WITH GPS FOR LANDING ON MOVING TARGET - Guided mode commands for horizontal control and standard z-controller for altitude
-// Frequency: 100hz or more
-void ModeLand::landing_on_moving_vehicle_run()
-{
-    // High-level state machine for landing on moving vehicle:
-    switch (landingOnVehicle_state)
-    {
-        case FOLLOWING:
-            follow_target_3D();
-            if (target_acquired == true && target_over_vehicle_has_been_reached() ) { landingOnVehicle_state = READY_FOR_DESCENT; }
-            break;
-
-        case READY_FOR_DESCENT: //Drone is within GPS landing area
-            if (switchLandingState == true) { gcs().send_text(MAV_SEVERITY_CRITICAL, "LANDING STATE: READY FOR DESCENT"); switchLandingState = false; }
-            follow_target_3D();
-            if ( user_has_allowed_landing_on_vehicle() ) { landingOnVehicle_state = LANDING; } //With RC switch?
-            break;
-
-        case LANDING:
-            if (switchLandingState == true) { gcs().send_text(MAV_SEVERITY_CRITICAL, "LANDING STATE: LANDING"); switchLandingState = false; }
-            follow_target_2D();
-            run_landing_state_machine();
-            land_run_vertical_control(land_pause);
-            attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
-            break;
-        default:
-            break;
-    }
-
-    // Landing and post-landing safety checks:
-    if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
-    {
-        copter.arming.disarm(AP_Arming::Method::LANDED);
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground idle detected; Disarming drone...");
-    }
-    if (is_disarmed_or_landed()) { make_safe_ground_handling(); }
-
-    // Managing buffer for rangefinder distances:
-    for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
-    RFdistance_buffer[0] = height_above_ground_cm;
-
-    // Managing the switch of landing states:
-    if (landingOnVehicle_previousState != landingOnVehicle_state) { switchLandingState = true; }
-    landingOnVehicle_previousState = landingOnVehicle_state;
-}
-
 // LAND CONTROLLER WITH NO GPS - Pilot controls roll and pitch angles
 // Frequency: 100hz or more
 void ModeLand::landing_without_gps_run()
@@ -215,6 +176,62 @@ void ModeLand::landing_without_gps_run()
     //       ... RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4]);
 }
 
+// LAND CONTROLLER WITH GPS FOR LANDING ON MOVING TARGET - Guided mode commands for horizontal control and standard z-controller for altitude
+// Frequency: 100hz or more
+void ModeLand::landing_on_moving_vehicle_run()
+{
+    height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
+    
+    // SAFETY CHECKS:
+    if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
+    {
+        copter.arming.disarm(AP_Arming::Method::LANDED); // Disarm when the landing detector says we've landed
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground idle detected; Disarming drone...");
+    }
+    if (is_disarmed_or_landed()) { make_safe_ground_handling(); return; }
+
+    // High-level state machine for landing on moving vehicle:
+    switch (landingOnVehicle_state)
+    {
+        case FOLLOWING:
+            follow_target_3D();
+            if (target_acquired == true && target_over_vehicle_has_been_reached() ) { landingOnVehicle_state = READY_FOR_DESCENT; }
+            break;
+
+        case READY_FOR_DESCENT: //Drone is within GPS landing area
+            if (switchLandingState == true) { gcs().send_text(MAV_SEVERITY_CRITICAL, "LANDING STATE: READY FOR DESCENT"); switchLandingState = false; }
+            follow_target_3D();
+            if ( user_has_allowed_landing_on_vehicle() ) { landingOnVehicle_state = LANDING; } //With RC switch?
+            break;
+
+        case LANDING:
+            if (switchLandingState == true) { gcs().send_text(MAV_SEVERITY_CRITICAL, "LANDING STATE: LANDING"); switchLandingState = false; }
+            follow_target_2D();
+            run_landing_state_machine();
+            land_run_vertical_control(land_pause);
+            attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+            break;
+        default:
+            break;
+    }
+
+    // Landing and post-landing safety checks:
+    if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
+    {
+        copter.arming.disarm(AP_Arming::Method::LANDED);
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground idle detected; Disarming drone...");
+    }
+    if (is_disarmed_or_landed()) { make_safe_ground_handling(); }
+
+    // Managing buffer for rangefinder distances:
+    for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
+    RFdistance_buffer[0] = height_above_ground_cm;
+
+    // Managing the switch of landing states:
+    if (landingOnVehicle_previousState != landingOnVehicle_state) { switchLandingState = true; }
+    landingOnVehicle_previousState = landingOnVehicle_state;
+}
+
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
@@ -241,7 +258,7 @@ void ModeLand::follow_target_3D()
 
         horizontal_dist_from_target_with_offset_cm = dist_vec_offs_neu.xy(); // cm
         
-        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Dist (NEU) to target over vehicle: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs_neu.x/100.0, dist_vec_offs_neu.y/100.0, dist_vec_offs_neu.z/100.0); }
+        if (runCount%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Dist (NEU) to target over vehicle: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs_neu.x/100.0, dist_vec_offs_neu.y/100.0, dist_vec_offs_neu.z/100.0); }
 
         // Calculate desired velocity vector in cm/s in NEU:
         const float kp = g2.follow.get_pos_p().kP();
@@ -321,7 +338,7 @@ void ModeLand::follow_target_3D()
     }
     else
     {
-        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
+        if (runCount%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
         target_acquired = false;
 
         // If target gets lost during pursuit, tell drone to simply keep its position and do nothing:
@@ -360,7 +377,7 @@ void ModeLand::follow_target_2D()
         // Convert dist_vec_offs to cm in NE:
         const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
 
-        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Horizontal dist (NE) to target over vehicle: x:%4.3f m; y:%4.3f m.", dist_vec_offs_ne.x/100.0, dist_vec_offs_ne.y/100.0); }
+        if (runCount%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Horizontal dist (NE) to target over vehicle: x:%4.3f m; y:%4.3f m.", dist_vec_offs_ne.x/100.0, dist_vec_offs_ne.y/100.0); }
                 
         // Calculate desired velocity vector in cm/s in NE:
         const float kp = g2.follow.get_pos_p().kP();
@@ -429,12 +446,14 @@ void ModeLand::follow_target_2D()
     }
     else
     {
-        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
+        if (runCount%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
         target_acquired = false;
 
         // If target gets lost during pursuit, tell drone to simply keep its position and do nothing:
         desired_velocity_ne_cms.x = 0;
         desired_velocity_ne_cms.y = 0;
+        
+        // Add something here to tell z_controller to stop descending???
     }
 
     // Log output at 10hz:
@@ -444,14 +463,11 @@ void ModeLand::follow_target_2D()
 
     ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
     ModeGuided::run();
-
-    mainLoopCount++;
-
 }
 
 bool ModeLand::target_over_vehicle_has_been_reached()
 {
-    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 10.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 10.0) // If drone is within landing range of target (100 cm square), start descent!
+    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 50.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 50.0) // If drone is within landing range of target (100 cm square), start descent!
     {
         return false;
     }
@@ -488,7 +504,7 @@ void ModeLand::run_landing_state_machine()
 
             height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
 
-            if (i%5 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
+            if (i%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
 
             if ( RF_glitch_detected() )
             {
@@ -529,7 +545,7 @@ void ModeLand::run_landing_state_machine()
             if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
 
             countdown_chrono = millis() - countdown_start;
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono );
+            if (i%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
 
             if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant la fin du countdown
 
@@ -548,7 +564,7 @@ void ModeLand::run_landing_state_machine()
 
             shutdown_motors = true;
             dropping_chrono = millis() - dropping_start;
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "Dropping chrono : %4.2f milliseconds", (double)dropping_chrono );
+            // gcs().send_text(MAV_SEVERITY_CRITICAL, "Dropping chrono : %4.2f milliseconds", (double)dropping_chrono );
 
             if (is_quad_touching_ground() || dropping_chrono >= dropping_max_duration) { state = TOUCHING_GROUND; i = 0; }
 
@@ -576,10 +592,11 @@ void ModeLand::run_landing_state_machine()
 
             if ( is_quad_flipping() ) { state = FLIPPING; i = 0; }
 
-            if ( rvt_chrono <= rvt_duration ) { g.rvt_pwm = 1050; } // 90% reverse throttle
-            else { state = LANDED_BUT_STILL_ALERT; i = 0; } // Done with RVT, switch to LANDED state.
+            //if ( rvt_chrono <= rvt_duration ) { g.rvt_pwm = 1400; } // 90% reverse throttle
+            //else
+            if ( rvt_chrono > rvt_duration ) { state = LANDED_BUT_STILL_ALERT; i = 0; } // Done with RVT, switch to LANDED state.
 
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "RVT Timer : %4.2f milliseconds", (double)rvt_chrono );
+            if(i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RVT Timer : %4.2f milliseconds", (double)rvt_chrono ); }
             
             break;
 
@@ -621,6 +638,10 @@ void ModeLand::run_landing_state_machine()
         case DONE: // Landing is done. Nothing else to do. Change mode to allow for takeoff.
 
             if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DONE"); }
+
+            // motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
+            // motors->output();
+            // copter.arming.disarm(AP_Arming::Method::LANDED);
 
             break;
 
