@@ -1035,7 +1035,7 @@ private:
     void pos_control_run();
     void accel_control_run();
     void velaccel_control_run();
-    // ADDED FUNCTION FOR LANDING ON VEHICLE:
+    // FOR LANDING ON VEHICLE:
     void velaccel_ne_control_run();
     //////////////////
     void pause_control_run();
@@ -1175,8 +1175,8 @@ private:
 
     uint32_t land_start_time;
     uint32_t land_loop_time;
-    int      i; // State-machine iteration counter
-    int      runCount;
+    int      lsmCount; // Landing state-machine iteration counter
+    int      runCount; // Main run loop iteration counter
 
     bool     start_countdown_before_drop;
     uint32_t reverse_thrust_timer;

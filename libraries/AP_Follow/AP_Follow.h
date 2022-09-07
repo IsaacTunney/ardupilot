@@ -53,6 +53,8 @@ public:
     // Get mavlink id of target to follow
     AP_Int16 get_target_sysid() { return _sysid; }
 
+    AP_Int8 get_gpss_req() { return _gpss_req; }
+
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
 
@@ -131,6 +133,7 @@ private:
     AP_Int8     _yaw_behave;        // following vehicle's yaw/heading behaviour (see YAW_BEHAVE enum)
     AP_Int8     _alt_type;          // altitude source for follow mode
     AC_P        _p_pos;             // position error P controller
+    AP_Int8     _gpss_req;          // GPS status requirement to allow entering Follow Mode
 
     // local variables
     bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)

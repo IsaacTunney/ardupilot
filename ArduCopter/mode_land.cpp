@@ -24,7 +24,7 @@ bool ModeLand::init(bool ignore_checks)
     landingOnVehicle_state         = FOLLOWING;
     landingOnVehicle_previousState = FOLLOWING;
     switchLandingState             = false;
-    i                              = 1; // counter
+    lsmCount                       = 1; // counter
     runCount                       = 0; // Main run loop iterator
 
     shutdown_motors             = false;
@@ -70,7 +70,6 @@ void ModeLand::exit()
     activate_rvt_countertorque  = false;
     activate_rvt                = false;
     attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
-
 }
 
 
@@ -84,8 +83,8 @@ void ModeLand::run()
         else { landing_with_gps_run(); }
     }
     else { landing_without_gps_run(); }
-    i++;
-    runCount++;    
+    lsmCount++;
+    runCount++;
 }
 
 //-------------------------------------------------------------------------
@@ -487,30 +486,30 @@ void ModeLand::run_landing_state_machine()
     {
         case INIT: // Make sure rangefinder readings are ok before allowing landing
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : INIT"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : INIT"); }
 
             shutdown_motors            = false;
             activate_rvt_countertorque = false;
             activate_rvt               = false;
 
             // Do pre-landing checks and wait for 100 iterations to populate Rangefinder buffer:
-            if ( do_prelanding_verifications() && i%100==0 ) { state = DESCENT; i = 0; }
+            if ( do_prelanding_verifications() && lsmCount%100==0 ) { state = DESCENT; lsmCount = 0; }
 
             break;
 
         case DESCENT: // Normal descent with rangefinder detection
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT"); }
 
             height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
 
-            if (i%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
+            if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
 
             if ( RF_glitch_detected() )
             {
                 state = DESCENT_WITHOUT_RF;
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "Switch to landing without RF");
-                i = 0;           
+                lsmCount = 0;           
             }
             
             if (height_above_ground_cm <= 70) // Continue normal landing procedure
@@ -520,13 +519,13 @@ void ModeLand::run_landing_state_machine()
                     state = COUNTDOWN;
                     countdown_start  = millis();
                     gcs().send_text(MAV_SEVERITY_CRITICAL, "Start countdown before drop");
-                    i = 0;
+                    lsmCount = 0;
                 }
                 else // Rangefinder glitch detected, switch to landing without rangefinder
                 {
                     state = DESCENT_WITHOUT_RF;
                     gcs().send_text(MAV_SEVERITY_CRITICAL, "Switch to landing without RF");
-                    i = 0;
+                    lsmCount = 0;
                 }
             }
 
@@ -534,55 +533,55 @@ void ModeLand::run_landing_state_machine()
 
         case DESCENT_WITHOUT_RF: // Descent without rangefinder - use IMU only to detect ground
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT_WITHOUT_RF"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT_WITHOUT_RF"); }
 
-            if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant la fin du countdown
+            if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; lsmCount = 0; } // Safety au cas où touche sol avant la fin du countdown
 
             break;
 
         case COUNTDOWN: // Countdown to reach desired height (out of rangefinder's range)
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
 
             countdown_chrono = millis() - countdown_start;
-            if (i%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
+            if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
 
-            if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; i = 0; } // Safety au cas où touche sol avant la fin du countdown
+            if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; lsmCount = 0; } // Safety au cas où touche sol avant la fin du countdown
 
             if ( countdown_chrono >= (uint32_t)countdown_duration )
             {
                 state = DROPPING;
                 dropping_start = millis();
-                i = 0;
+                lsmCount = 0;
             }
 
             break;
 
         case DROPPING: // Drone is free falling
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DROPPING"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DROPPING"); }
 
             shutdown_motors = true;
             dropping_chrono = millis() - dropping_start;
             // gcs().send_text(MAV_SEVERITY_CRITICAL, "Dropping chrono : %4.2f milliseconds", (double)dropping_chrono );
 
-            if (is_quad_touching_ground() || dropping_chrono >= dropping_max_duration) { state = TOUCHING_GROUND; i = 0; }
+            if (is_quad_touching_ground() || dropping_chrono >= dropping_max_duration) { state = TOUCHING_GROUND; lsmCount = 0; }
 
             break;
 
         case TOUCHING_GROUND: // Drone just hit the ground
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : TOUCHING GROUND"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : TOUCHING GROUND"); }
 
             state = RVT;
             rvt_start = millis();
-            i = 0;
+            lsmCount = 0;
 
             break;
 
         case RVT: // Activate Full Reverse Thrust
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : RVT"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : RVT"); }
             
             shutdown_motors            = false;
             activate_rvt_countertorque = false;
@@ -590,28 +589,28 @@ void ModeLand::run_landing_state_machine()
 
             rvt_chrono = millis()-rvt_start;
 
-            if ( is_quad_flipping() ) { state = FLIPPING; i = 0; }
+            if ( is_quad_flipping() ) { state = FLIPPING; lsmCount = 0; }
 
             //if ( rvt_chrono <= rvt_duration ) { g.rvt_pwm = 1400; } // 90% reverse throttle
             //else
-            if ( rvt_chrono > rvt_duration ) { state = LANDED_BUT_STILL_ALERT; i = 0; } // Done with RVT, switch to LANDED state.
+            if ( rvt_chrono > rvt_duration ) { state = LANDED_BUT_STILL_ALERT; lsmCount = 0; } // Done with RVT, switch to LANDED state.
 
-            if(i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RVT Timer : %4.2f milliseconds", (double)rvt_chrono ); }
+            if(lsmCount%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RVT Timer : %4.2f milliseconds", (double)rvt_chrono ); }
             
             break;
 
         case FLIPPING: // Drone is flipping, but there is still time to recover
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING"); }
 
             activate_rvt = false; 
             rvt_chrono = millis()-rvt_start;
 
             if ( rvt_chrono <= rvt_duration ) { activate_rvt_countertorque = true; }
-            else { state = LANDED_BUT_STILL_ALERT; i = 0; break; } // Done with RVT, switch to LANDED state
+            else { state = LANDED_BUT_STILL_ALERT; lsmCount = 0; break; } // Done with RVT, switch to LANDED state
 
-            if ( is_flipping_getting_worse() ) { state = LANDED_BUT_STILL_ALERT; i = 0; }
-            if ( is_lean_angle_stabilizing() ) { state = RVT; i = 0; } // Go back to RVT state
+            if ( is_flipping_getting_worse() ) { state = LANDED_BUT_STILL_ALERT; lsmCount = 0; }
+            if ( is_lean_angle_stabilizing() ) { state = RVT; lsmCount = 0; } // Go back to RVT state
 
             gcs().send_text(MAV_SEVERITY_CRITICAL, "RVT Timer : %4.2f milliseconds", (double)rvt_chrono );
 
@@ -631,13 +630,13 @@ void ModeLand::run_landing_state_machine()
             gcs().send_text(MAV_SEVERITY_CRITICAL, "All motors disarmed...");
 
             state = DONE;
-            i = 0;
+            lsmCount = 0;
 
             break;
 
         case DONE: // Landing is done. Nothing else to do. Change mode to allow for takeoff.
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DONE"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DONE"); }
 
             // motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
             // motors->output();
@@ -647,7 +646,7 @@ void ModeLand::run_landing_state_machine()
 
         case ABORT_LANDING: // Future work : Add "abort landing" functionalities
 
-            if (i == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
+            if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
 
             break;
     } 

@@ -24,6 +24,15 @@ bool ModeFollow::init(const bool ignore_checks)
 
     i = 0;
 
+    // Check GPS status requirement:
+    //**Est-ce que ce sont les bons GPSs?? Comment checker celui sur un autre véhicule? Rajouter msg mavlink??
+    // Il y a aussi fonction num_sensors pour checker combien de GPS sont perçus...
+    if ( AP::gps().status(1) < g2.follow.get_gpss_req() || AP::gps().status(2) < g2.follow.get_gpss_req() )
+    {
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied. Exiting Follow Mode");
+        return false;
+    }
+
     // re-use guided mode
     return ModeGuided::init(ignore_checks);
 }
@@ -70,6 +79,12 @@ void ModeFollow::run()
         desired_velocity_neu_cms.x =  (vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp);
         desired_velocity_neu_cms.y =  (vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp);
         desired_velocity_neu_cms.z = (-vel_of_target.z * 100.0f) + (dist_vec_offs_neu.z * kp);
+
+        // Calculate target's velocity direction with vel_of_target x and y components:
+
+        // If target's horizontal velocity direction and it's heading are different, there is a problem; they should always match.
+        // In the case of following a high speed vehicle, we need to make sure there is no heading glitch, because it would deport the landing zone and could result in a crash.
+
 
         // scale desired velocity to stay within horizontal speed limit
         float desired_speed_xy = safe_sqrt(sq(desired_velocity_neu_cms.x) + sq(desired_velocity_neu_cms.y));
@@ -150,6 +165,16 @@ void ModeFollow::run()
     else
     {
         if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
+    }
+
+    // GPS STATUS CHECK:
+    if ( AP::gps().status(1) < g2.follow.get_gpss_req() || AP::gps().status(2) < g2.follow.get_gpss_req() )
+    {
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied. ");
+        // Reset à 0 toutes les commandes Guided
+        desired_velocity_neu_cms.zero(); // À tester!!
+        use_yaw = false;
+        yaw_cd = 0.0f;
     }
 
     // log output at 10hz
