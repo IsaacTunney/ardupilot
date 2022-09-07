@@ -82,7 +82,10 @@ void ModeLand::run()
         if (g.landing_type == VEHICLE) { landing_on_moving_vehicle_run(); }
         else { landing_with_gps_run(); }
     }
-    else { landing_without_gps_run(); }
+    else
+    {
+        landing_without_gps_run();
+    }
     lsmCount++;
     runCount++;
 }
@@ -508,8 +511,9 @@ void ModeLand::run_landing_state_machine()
             if ( RF_glitch_detected() )
             {
                 state = DESCENT_WITHOUT_RF;
-                gcs().send_text(MAV_SEVERITY_CRITICAL, "Switch to landing without RF");
-                lsmCount = 0;           
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Switched to landing without RF");
+                lsmCount = 0;  
+                break;         
             }
             
             if (height_above_ground_cm <= 70) // Continue normal landing procedure
@@ -518,13 +522,12 @@ void ModeLand::run_landing_state_machine()
                 {
                     state = COUNTDOWN;
                     countdown_start  = millis();
-                    gcs().send_text(MAV_SEVERITY_CRITICAL, "Start countdown before drop");
                     lsmCount = 0;
                 }
                 else // Rangefinder glitch detected, switch to landing without rangefinder
                 {
                     state = DESCENT_WITHOUT_RF;
-                    gcs().send_text(MAV_SEVERITY_CRITICAL, "Switch to landing without RF");
+                    gcs().send_text(MAV_SEVERITY_CRITICAL, "Switched to landing without RF");
                     lsmCount = 0;
                 }
             }
@@ -544,7 +547,7 @@ void ModeLand::run_landing_state_machine()
             if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : COUNTDOWN"); }
 
             countdown_chrono = millis() - countdown_start;
-            if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
+            // if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
 
             if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; lsmCount = 0; } // Safety au cas où touche sol avant la fin du countdown
 
@@ -644,7 +647,7 @@ void ModeLand::run_landing_state_machine()
 
             break;
 
-        case ABORT_LANDING: // Future work : Add "abort landing" functionalities
+        case ABORT_LANDING: // Add "abort landing" functionalities at some point?
 
             if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : ABORT LANDING"); }
 
@@ -667,7 +670,7 @@ bool ModeLand::do_prelanding_verifications()
     }
     else
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder data is not available");
+        if (lsmCount%500 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder data is not available"); }
     }
     return false;
 }
@@ -706,7 +709,7 @@ bool ModeLand::drone_was_too_far_from_ground() // To prevent a rangefinder glitc
     }
     if (max >= 100) //All the buffered values must be below 200 cm to consider the drone "not too far from ground"
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Landing glitch detected - Drone to far to land");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Landing glitch detected - Drone too far to land");
         return true;
     }
     else
@@ -733,7 +736,7 @@ bool ModeLand::is_quad_dropping() // Returns true if speed > 10 cm/s
 bool ModeLand::is_quad_touching_ground() // Returns true if 
 {
     bool condition1 = ( ( ahrs.get_gyro_latest().length() ) >= 3.1416 ); // Spike in angular rate (rad/s)
-    bool condition2 = ( ( ahrs.get_accel(). length() ) >= 1.5*9.81 ); // Spike in acceleration
+    bool condition2 = ( ( ahrs.get_accel().length() ) >= 1.5*9.81 ); // Spike in acceleration
     // bool condition3 = ( speedZ <= XY ); // speed?
     return condition1 || condition2;
     
