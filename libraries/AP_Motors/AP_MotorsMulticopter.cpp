@@ -443,7 +443,6 @@ int16_t AP_MotorsMulticopter::output_to_pwm(float actuator)
         // in all other spool modes, convert to desired PWM
         pwm_output = get_pwm_output_min() + (get_pwm_output_max() - get_pwm_output_min()) * actuator;
     }
-
     return pwm_output;
 }
 
