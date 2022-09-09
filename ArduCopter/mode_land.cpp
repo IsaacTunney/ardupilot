@@ -70,6 +70,7 @@ void ModeLand::exit()
     activate_rvt_countertorque  = false;
     activate_rvt                = false;
     attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+    gcs().send_text(MAV_SEVERITY_WARNING, "Exit mode landing");
 }
 
 

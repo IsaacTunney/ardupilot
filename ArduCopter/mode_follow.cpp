@@ -24,14 +24,16 @@ bool ModeFollow::init(const bool ignore_checks)
 
     i = 0;
 
-    // Check GPS status requirement:
-    //**Est-ce que ce sont les bons GPSs?? Comment checker celui sur un autre véhicule? Rajouter msg mavlink??
-    // Il y a aussi fonction num_sensors pour checker combien de GPS sont perçus...
-    if ( AP::gps().status(1) < g2.follow.get_gpss_req() || AP::gps().status(2) < g2.follow.get_gpss_req() )
+    // Check GPS status requirements:
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Number of GPSs discovered here: %1d", AP::gps().num_sensors());
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS 1 Status: %2d",  AP::gps().status(0));
+    if ( AP::gps().status(1) < g2.follow.get_gpss_req() ) // Check Follower GPS status
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied. Exiting Follow Mode");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied");
         return false;
     }
+    // **To check leader GPS status, will have to receive and parse a mavlink msg specifying this info**
+    // More specifically, it's the following mavlink message : GPS_FIX_TYPE
 
     // re-use guided mode
     return ModeGuided::init(ignore_checks);
