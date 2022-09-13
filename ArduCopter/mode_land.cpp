@@ -74,8 +74,8 @@ void ModeLand::exit()
 }
 
 
-// land_run - runs the land controller
-// should be called at 100hz or more
+// land_run - runs the land controller at around 200 to 400 Hz
+// flightmode->run() is updated in the fast_loop of Copter.cpp
 void ModeLand::run()
 {
     if (control_position)
@@ -89,6 +89,16 @@ void ModeLand::run()
     }
     lsmCount++;
     runCount++;
+
+    // Checking rates (should expect around 200 to 400 Hz)
+    uint32_t time_now = AP_HAL::millis();
+    if (runCount%100==0)
+    {
+        float period = (time_now-last_run_loop_ms)/100;
+        // gcs().send_text(MAV_SEVERITY_CRITICAL, "Period: %4.2f ms.", period);
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Loop rate: %5.2f Hz", (1000/period) );
+        last_run_loop_ms = time_now;
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -355,6 +365,7 @@ void ModeLand::follow_target_3D()
     uint32_t now = AP_HAL::millis();
     bool log_request = false;
     if ((now - last_log_ms >= 100) || (last_log_ms == 0)) { log_request = true; last_log_ms = now; }
+
 
     // Re-use guided mode's velocity controller (takes NEU):
     ModeGuided::set_velocity(desired_velocity_neu_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
@@ -666,7 +677,7 @@ bool ModeLand::do_prelanding_verifications()
         }
         else
         {
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "Drone is too low to start landing procedure");
+            if (lsmCount%500 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Drone is too low to start landing procedure"); }
         }
     }
     else

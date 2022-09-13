@@ -26,14 +26,17 @@ bool ModeFollow::init(const bool ignore_checks)
 
     // Check GPS status requirements:
     gcs().send_text(MAV_SEVERITY_CRITICAL, "Number of GPSs discovered here: %1d", AP::gps().num_sensors());
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS 1 Status: %2d",  AP::gps().status(0));
-    if ( AP::gps().status(1) < g2.follow.get_gpss_req() ) // Check Follower GPS status
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Follower GPS Status: %2d",  AP::gps().status(0));
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Target GPS status: %2d", g2.follow.get_target_gps_fix_type() );
+    if ( AP::gps().status(0) < g2.follow.get_gpss_req() ) // Check Follower GPS status
     {
         gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied");
         return false;
     }
     // **To check leader GPS status, will have to receive and parse a mavlink msg specifying this info**
     // More specifically, it's the following mavlink message : GPS_FIX_TYPE
+
+    
 
     // re-use guided mode
     return ModeGuided::init(ignore_checks);
@@ -45,6 +48,8 @@ void ModeFollow::exit()
     g2.follow.clear_offsets_if_required();
 }
 
+// Should run at around 200 to 400 Hz
+// Called by the main fast_loop in copter.cpp
 void ModeFollow::run()
 {
     // if not armed set throttle to zero and exit immediately
@@ -53,12 +58,20 @@ void ModeFollow::run()
         return;
     }
 
+    // // Checking rates (should expect around 200 to 400 Hz)
+    // uint32_t time_now = AP_HAL::millis();
+    // if (i%100==0)
+    // {
+    //     float period = (time_now-last_run_loop_ms)/100;
+    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Loop rate: %5.2f Hz", (1000/period) );
+    //     last_run_loop_ms = time_now;
+    // }
+
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // re-use guided mode's velocity controller
-    // Note: this is safe from interference from GCSs and companion computer's whose guided mode
-    //       position and velocity requests will be ignored while the vehicle is not in guided mode
+    // uint32_t time_since_last_pos_update = AP_HAL::millis()-g2.follow.get_last_update_ms();
+    // gcs().send_text(MAV_SEVERITY_CRITICAL, "Time since last pos update: %4.0f ms", (double)time_since_last_pos_update );
 
     // variables to be sent to velocity controller
     Vector3f desired_velocity_neu_cms;
@@ -68,12 +81,13 @@ void ModeFollow::run()
     Vector3f dist_vec;  // vector to lead vehicle
     Vector3f dist_vec_offs;  // vector to lead vehicle + offset
     Vector3f vel_of_target;  // velocity of lead vehicle
-    if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target)) {
-        
+    if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target))
+    {
         // convert dist_vec_offs to cm in NEU
         const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
         
-        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Distance to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y); }
+        // if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Distance to lead vehicle: x:%4.3f m; y:%4.3f m", dist_vec.x, dist_vec.y); }
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Dist from target: x:%4.3f m; y:%4.3f m", dist_vec_offs.x, dist_vec_offs.y); 
 
         // calculate desired velocity vector in cm/s in NEU
         const float kp = g2.follow.get_pos_p().kP();
@@ -85,7 +99,7 @@ void ModeFollow::run()
         // Calculate target's velocity direction with vel_of_target x and y components:
 
         // If target's horizontal velocity direction and it's heading are different, there is a problem; they should always match.
-        // In the case of following a high speed vehicle, we need to make sure there is no heading glitch, because it would deport the landing zone and could result in a crash.
+        // In the case of following a high speed vehicle, we need to make sure there is no heading glitch, because it would deport the landing zone sideways and could result in a crash.
 
 
         // scale desired velocity to stay within horizontal speed limit
@@ -131,7 +145,8 @@ void ModeFollow::run()
         copter.avoid.adjust_velocity(desired_velocity_neu_cms, pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss(), pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss(), G_Dt);
 
         // calculate vehicle heading
-        switch (g2.follow.get_yaw_behave()) {
+        switch (g2.follow.get_yaw_behave())
+        {
             case AP_Follow::YAW_BEHAVE_FACE_LEAD_VEHICLE: {
                 if (dist_vec.xy().length_squared() > 1.0) {
                     yaw_cd = get_bearing_cd(Vector2f{}, dist_vec.xy());
@@ -170,11 +185,11 @@ void ModeFollow::run()
     }
 
     // GPS STATUS CHECK:
-    if ( AP::gps().status(1) < g2.follow.get_gpss_req() || AP::gps().status(2) < g2.follow.get_gpss_req() )
+    if ( AP::gps().status(0) < g2.follow.get_gpss_req() ) // Check Follower GPS status
     {
         gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied. ");
         // Reset à 0 toutes les commandes Guided
-        desired_velocity_neu_cms.zero(); // À tester!!
+        desired_velocity_neu_cms.zero();
         use_yaw = false;
         yaw_cd = 0.0f;
     }
@@ -187,6 +202,9 @@ void ModeFollow::run()
         last_log_ms = now;
     }
     // re-use guided mode's velocity controller (takes NEU)
+    // Note: this is safe from interference from GCSs and companion computer's whose guided mode
+    //       position and velocity requests will be ignored while the vehicle is not in guided mode
+
     ModeGuided::set_velocity(desired_velocity_neu_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
     ModeGuided::run();
 

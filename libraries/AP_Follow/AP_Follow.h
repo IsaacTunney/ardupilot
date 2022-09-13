@@ -53,7 +53,13 @@ public:
     // Get mavlink id of target to follow
     AP_Int16 get_target_sysid() { return _sysid; }
 
+    // Get GPS status requirements
     AP_Int8 get_gpss_req() { return _gpss_req; }
+
+    // Get target's GPS fix type (passed through  a mavlink message)
+    uint8_t get_target_gps_fix_type() { return _target_gps_fix_type; }
+
+
 
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
@@ -133,11 +139,16 @@ private:
     AP_Int8     _yaw_behave;        // following vehicle's yaw/heading behaviour (see YAW_BEHAVE enum)
     AP_Int8     _alt_type;          // altitude source for follow mode
     AC_P        _p_pos;             // position error P controller
+    // ADDED FOR TESTING
     AP_Int8     _gpss_req;          // GPS status requirement to allow entering Follow Mode
+    ///////////////////
 
     // local variables
     bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
     uint32_t _last_location_update_ms;  // system time of last position update
+    // ADDED FOR TESTING
+    uint32_t _last_gps_update_ms;   // System time of last gps raw int update
+    ///////////////////
     Location _target_location;      // last known location of target
     Vector3f _target_velocity_ned;  // last known velocity of target in NED frame in m/s
     Vector3f _target_accel_ned;     // last known acceleration of target in NED frame in m/s/s
@@ -147,7 +158,9 @@ private:
     float _dist_to_target;          // latest distance to target in meters (for reporting purposes)
     float _bearing_to_target;       // latest bearing to target in degrees (for reporting purposes)
     bool _offsets_were_zero;        // true if offsets were originally zero and then initialised to the offset from lead vehicle
-
+    // ADDED FOR TESTING
+    uint8_t _target_gps_fix_type;   // Fix type of target's GPS. To make sure we don't lose RTK fix during landing sequence.
+    ///////////////////
     // setup jitter correction with max transport lag of 3s
     JitterCorrection _jitter{3000};
 };

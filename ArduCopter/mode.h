@@ -1202,6 +1202,8 @@ private:
     bool     target_acquired;
     bool     switchLandingState;
 
+    uint32_t last_run_loop_ms;
+
 };
 
 
@@ -1850,7 +1852,11 @@ protected:
 
     uint32_t last_log_ms;   // system time of last time desired velocity was logging
 
+private:
+    uint32_t last_run_loop_ms;
     int i;
+
+
 };
 
 class ModeZigZag : public Mode {        
