@@ -25,18 +25,18 @@ bool ModeFollow::init(const bool ignore_checks)
     i = 0;
 
     // Check GPS status requirements:
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Number of GPSs discovered here: %1d", AP::gps().num_sensors());
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Follower GPS Status: %2d",  AP::gps().status(0));
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Target GPS status: %2d", g2.follow.get_target_gps_fix_type() );
     if ( AP::gps().status(0) < g2.follow.get_gpss_req() ) // Check Follower GPS status
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Follower GPS Status requirements not satisfied");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Status: %2d",  AP::gps().status(0));
         return false;
     }
-    // **To check leader GPS status, will have to receive and parse a mavlink msg specifying this info**
-    // More specifically, it's the following mavlink message : GPS_FIX_TYPE
-
-    
+    if ( g2.follow.get_target_gps_fix_type() < g2.follow.get_gpss_req() ) // Check Follower GPS status
+    {
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target GPS Status requirements not satisfied");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Status: %2d", g2.follow.get_target_gps_fix_type() );
+        return false;
+    }
 
     // re-use guided mode
     return ModeGuided::init(ignore_checks);
@@ -185,7 +185,7 @@ void ModeFollow::run()
     }
 
     // GPS STATUS CHECK:
-    if ( AP::gps().status(0) < g2.follow.get_gpss_req() ) // Check Follower GPS status
+    if ( AP::gps().status(0) < g2.follow.get_gpss_req() || g2.follow.get_target_gps_fix_type() < g2.follow.get_gpss_req() ) // Check Follower GPS status
     {
         gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied. ");
         // Reset à 0 toutes les commandes Guided
