@@ -1835,9 +1835,9 @@ public:
     void exit() override;
     void run() override;
 
-    bool requires_GPS() const override { return true; }
+    bool requires_GPS() const override { return false; } // was true
     bool has_manual_throttle() const override { return false; }
-    bool allows_arming(AP_Arming::Method method) const override { return true; } // Was false
+    bool allows_arming(AP_Arming::Method method) const override { return false; }
     bool is_autopilot() const override { return true; }
 
 protected:
@@ -1855,6 +1855,7 @@ protected:
 private:
     uint32_t last_run_loop_ms;
     int i;
+    float target_speed_bearing;
 
 
 };
