@@ -57,11 +57,11 @@ void ModeFollow::run()
     }
 
     // // Checking rates (should expect around 200 to 400 Hz)
-    // uint32_t time_now = AP_HAL::millis();
+    // uint64_t time_now = AP_HAL::micros64();
     // if (i%100==0)
     // {
     //     float period = (time_now-last_run_loop_ms)/100;
-    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Loop rate: %5.2f Hz", (1000/period) );
+    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Loop rate: %5.2f Hz", (1000000/period) );
     //     last_run_loop_ms = time_now;
     // }
 
@@ -203,7 +203,9 @@ void ModeFollow::run()
     }
     else { target_speed_bearing = 0; }
     if (i%200 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Target speed bearing: %4.2f deg", target_speed_bearing); }
-    
+
+    if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Time in between target msg updates: %4ld ms", g2.follow.get_time_between_updates_ms() ); }
+
     // Log output at 10hz for ModeGuided commands
     // Note: Logs specific to ModeFollow are in AP_Follow library
     uint32_t now = AP_HAL::millis();

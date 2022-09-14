@@ -108,6 +108,9 @@ public:
 
     // get system time of last position update
     uint32_t get_last_update_ms() const { return _last_location_update_ms; }
+    
+    // get time in between target's position updates through mavlink
+    uint32_t get_time_between_updates_ms() const { return _time_between_updates_ms; }
 
     // parameter list
     static const struct AP_Param::GroupInfo var_info[];
@@ -139,15 +142,16 @@ private:
     AP_Int8     _yaw_behave;        // following vehicle's yaw/heading behaviour (see YAW_BEHAVE enum)
     AP_Int8     _alt_type;          // altitude source for follow mode
     AC_P        _p_pos;             // position error P controller
-    // ADDED FOR TESTING
     AP_Int8     _gpss_req;          // GPS status requirement to allow entering Follow Mode
-    ///////////////////
 
     // local variables
     bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
-    uint32_t _last_location_update_ms;  // system time of last position update
+    uint32_t _last_location_update_ms; // system time of last position update
     // ADDED FOR TESTING
     uint32_t _last_gps_update_ms;   // System time of last gps raw int update
+    uint32_t _time_between_updates_ms; // To see at what rate mavlink messages are being updated
+    uint32_t _time_since_last_update;
+    bool _updated_last; // Flag to keep in memory last state of mavlink msg update
     ///////////////////
     Location _target_location;      // last known location of target
     Vector3f _target_velocity_ned;  // last known velocity of target in NED frame in m/s

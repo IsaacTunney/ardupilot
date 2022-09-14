@@ -222,7 +222,7 @@ bool AP_Follow::get_target_dist_and_vel_ned(Vector3f &dist_ned, Vector3f &dist_w
         return false;
     }
 
-    // initialise offsets from distance vector if required
+    // initialize offsets from distance vector if required
     init_offsets_if_required(dist_vec);
 
     // get offsets
@@ -349,62 +349,65 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
             
             break;
         }
-        case MAVLINK_MSG_ID_FOLLOW_TARGET:
-        {
-            // decode message
-            mavlink_follow_target_t packet;
-            mavlink_msg_follow_target_decode(&msg, &packet);
-
-            // ignore message if lat and lon are (exactly) zero
-            if ((packet.lat == 0 && packet.lon == 0)) {
-                return;
-            }
-            // require at least position
-            if ((packet.est_capabilities & (1<<0)) == 0) {
-                return;
-            }
-
-            Location new_loc = _target_location;
-            new_loc.lat = packet.lat;
-            new_loc.lng = packet.lon;
-            new_loc.set_alt_cm(packet.alt*100, Location::AltFrame::ABSOLUTE);
-
-            // FOLLOW_TARGET is always AMSL, change the provided alt to
-            // above home if we are configured for relative alt
-            if (_alt_type == AP_FOLLOW_ALTITUDE_TYPE_RELATIVE &&
-                !new_loc.change_alt_frame(Location::AltFrame::ABOVE_HOME)) {
-                return;
-            }
-            _target_location = new_loc;
-
-            if (packet.est_capabilities & (1<<1)) {
-                _target_velocity_ned.x = packet.vel[0]; // velocity north
-                _target_velocity_ned.y = packet.vel[1]; // velocity east
-                _target_velocity_ned.z = packet.vel[2]; // velocity down
-            } else {
-                _target_velocity_ned.zero();
-            }
-
-            // get a local timestamp with correction for transport jitter
-            _last_location_update_ms = _jitter.correct_offboard_timestamp_msec(packet.timestamp, AP_HAL::millis());
-
-            if (packet.est_capabilities & (1<<3)) {
-                Quaternion q{packet.attitude_q[0], packet.attitude_q[1], packet.attitude_q[2], packet.attitude_q[3]};
-                float r, p, y;
-                q.to_euler(r,p,y);
-                _target_heading = degrees(y);
-                _last_heading_update_ms = _last_location_update_ms;
-            }
-
-            // initialise _sysid if zero to sender's id
-            if (_sysid == 0) {
-                _sysid.set(msg.sysid);
-                _automatic_sysid = true;
-            }
-            updated = true;
-            break;
-        }
+        // case MAVLINK_MSG_ID_FOLLOW_TARGET:
+        // {
+        //     // decode message
+        //     mavlink_follow_target_t packet;
+        //     mavlink_msg_follow_target_decode(&msg, &packet);
+        //     // ignore message if lat and lon are (exactly) zero
+        //     if ((packet.lat == 0 && packet.lon == 0)) {
+        //         return;
+        //     }
+        //     // require at least position
+        //     if ((packet.est_capabilities & (1<<0)) == 0) {
+        //         return;
+        //     }
+        //     Location new_loc = _target_location;
+        //     new_loc.lat = packet.lat;
+        //     new_loc.lng = packet.lon;
+        //     new_loc.set_alt_cm(packet.alt*100, Location::AltFrame::ABSOLUTE);
+        //     // FOLLOW_TARGET is always AMSL, change the provided alt to
+        //     // above home if we are configured for relative alt
+        //     if (_alt_type == AP_FOLLOW_ALTITUDE_TYPE_RELATIVE &&
+        //         !new_loc.change_alt_frame(Location::AltFrame::ABOVE_HOME)) {
+        //         return;
+        //     }
+        //     _target_location = new_loc;
+        //     if (packet.est_capabilities & (1<<1)) {
+        //         _target_velocity_ned.x = packet.vel[0]; // velocity north
+        //         _target_velocity_ned.y = packet.vel[1]; // velocity east
+        //         _target_velocity_ned.z = packet.vel[2]; // velocity down
+        //     } else {
+        //         _target_velocity_ned.zero();
+        //     }
+        //     // get a local timestamp with correction for transport jitter
+        //     _last_location_update_ms = _jitter.correct_offboard_timestamp_msec(packet.timestamp, AP_HAL::millis());
+        //     if (packet.est_capabilities & (1<<3)) {
+        //         Quaternion q{packet.attitude_q[0], packet.attitude_q[1], packet.attitude_q[2], packet.attitude_q[3]};
+        //         float r, p, y;
+        //         q.to_euler(r,p,y);
+        //         _target_heading = degrees(y);
+        //         _last_heading_update_ms = _last_location_update_ms;
+        //     }
+        //     // initialise _sysid if zero to sender's id
+        //     if (_sysid == 0) {
+        //         _sysid.set(msg.sysid);
+        //         _automatic_sysid = true;
+        //     }
+        //     updated = true;
+        //     break;
+        // }
     }
+
+    // ADDED FOR TESTING
+    uint32_t tnow = AP_HAL::millis();
+    if (updated && !_updated_last)
+    {
+        _time_between_updates_ms = tnow - _time_since_last_update;
+        _time_since_last_update = tnow;
+    }
+    _updated_last = updated;
+    ///////////////////
     
     if (updated) {
         // get estimated location and velocity
