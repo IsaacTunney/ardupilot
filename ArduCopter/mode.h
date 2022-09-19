@@ -1856,7 +1856,7 @@ private:
     uint32_t last_run_loop_ms;
     int i;
     float target_speed_bearing;
-
+    bool allow_following;
 
 };
 

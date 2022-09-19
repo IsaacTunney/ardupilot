@@ -22,8 +22,6 @@ bool ModeFollow::init(const bool ignore_checks)
         return false;
     }
 
-    i = 0;
-
     // Check GPS status requirements before starting run loop:
     if ( AP::gps().status(0) < g2.follow.get_gpss_req() ) // Check Follower GPS status
     {
@@ -35,6 +33,8 @@ bool ModeFollow::init(const bool ignore_checks)
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Target GPS Status: %2d. Requirements not satisfied", g2.follow.get_target_gps_fix_type());
         return false;
     }
+    allow_following = true;
+    i = 0;
 
     // Re-use guided mode's initialization
     return ModeGuided::init(ignore_checks);
@@ -68,9 +68,6 @@ void ModeFollow::run()
     // Set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // uint32_t time_since_last_pos_update = AP_HAL::millis()-g2.follow.get_last_update_ms();
-    // gcs().send_text(MAV_SEVERITY_CRITICAL, "Time since last pos update: %4.0f ms", (double)time_since_last_pos_update );
-
     // Variables to be sent to velocity controller
     Vector3f desired_velocity_neu_cms;
     bool use_yaw = false;
@@ -80,7 +77,7 @@ void ModeFollow::run()
     Vector3f dist_vec;  // vector to lead vehicle
     Vector3f dist_vec_offs;  // vector to lead vehicle + offset
     Vector3f vel_of_target;  // velocity of lead vehicle
-    if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target))
+    if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target) && allow_following)
     {
         // Convert dist_vec_offs to cm in NEU
         const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
@@ -168,52 +165,59 @@ void ModeFollow::run()
                 // do nothing
                break;
         }
+
+        // Check GPS status
+        if ( AP::gps().status(0) < g2.follow.get_gpss_req() || g2.follow.get_target_gps_fix_type() < g2.follow.get_gpss_req() ) // Check Follower GPS status
+        {
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied. ");
+            // Reset à 0 toutes les commandes Guided
+            desired_velocity_neu_cms.zero();
+            use_yaw = false;
+            yaw_cd = 0.0f;
+            allow_following = false; // Set flag to block the pursuit of the landing sequence after a bug
+        }
+
+        // Check heading against target velocity heading: (should match)
+        //     *Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
+        //      (Degré de confiance proportionnel à son amplitude)
+        //    **Éventuellement, pour augmenter vitesse calcul, mettre ces checks avant le reste des opérations ci-dessus
+        if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 1.0 ) // Only calculate if speed is significant enough
+        {
+            target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
+            // g2.follow.get_target_heading_deg(target_heading); // 0 to 360 deg
+            if ( abs(target_speed_bearing - target_heading) > 30 ) // Offset is too large, there is a problem!
+            {
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Offset too large between heading and velocity vector. Killing Follow Task.");
+                desired_velocity_neu_cms.zero();
+                use_yaw = false;
+                yaw_cd = 0.0f;
+                allow_following = false; // Set flag to block the pursuit of the landing sequence after a bug
+            }
+        }
+        else
+        {
+            target_speed_bearing = 0; // Speed not high enough to determine a proper target speed bearing
+        }
     }
-    else
+    else // Could not get target's distance and velocity
     {
         if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
     }
 
-    // GPS STATUS CHECK:
-    if ( AP::gps().status(0) < g2.follow.get_gpss_req() || g2.follow.get_target_gps_fix_type() < g2.follow.get_gpss_req() ) // Check Follower GPS status
-    {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "GPS Status requirements not satisfied. ");
-        // Reset à 0 toutes les commandes Guided
-        desired_velocity_neu_cms.zero();
-        use_yaw = false;
-        yaw_cd = 0.0f;
-    }
-
-    // HEADING AND TARGET VELOCTY BEARING CHECKS:
-    // Calculate target's velocity direction with vel_of_target x and y components:
-    //     *Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
-    //      (Degré de confiance proportionnel à son amplitude)
-    //    **Éventuellement, pour augmenter vitesse calcul, mettre ces checks avant le reste des opérations ci-dessus
-    if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 1.0 ) // Only calculate if speed is significant enough
-    {
-        target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
-        // g2.follow.get_target_heading_deg(target_heading); // 0 to 360 deg
-        if ( abs(target_speed_bearing - target_heading) > 30 ) // Offset is too large, there is a problem!
-        {
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "Offset too large between heading and velocity vector. Killing Follow Task.");
-            desired_velocity_neu_cms.zero();
-            use_yaw = false;
-            yaw_cd = 0.0f;
-        }
-    }
-    else { target_speed_bearing = 0; }
+    // Printing stuff to the HUD:
     if (i%200 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Target speed bearing: %4.2f deg", target_speed_bearing); }
-
     if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Time in between target msg updates: %4ld ms", g2.follow.get_time_between_updates_ms() ); }
 
     // Log output at 10hz for ModeGuided commands
     // Note: Logs specific to ModeFollow are in AP_Follow library
     uint32_t now = AP_HAL::millis();
     bool log_request = false;
-    if ((now - last_log_ms >= 100) || (last_log_ms == 0)) {
+    if ((now - last_log_ms >= 100) || (last_log_ms == 0))
+    {
         log_request = true;
         last_log_ms = now;
     }
+
     // Re-use guided mode's velocity controller (takes NEU)
     // Note: this is safe from interference from GCSs and companion computer's whose guided mode
     //       position and velocity requests will be ignored while the vehicle is not in guided mode
