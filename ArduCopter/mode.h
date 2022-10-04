@@ -1854,9 +1854,11 @@ protected:
 
 private:
     uint32_t last_run_loop_ms;
-    int i;
-    float target_speed_bearing;
-    bool allow_following;
+    int      i;
+    float    target_speed_bearing;
+    bool     allow_following;
+    bool     target_was_acquired;
+    uint32_t average_time_between_updates_ms;
 
 };
 

@@ -328,7 +328,7 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
                 _target_heading = packet.hdg * 0.01f;   // convert centi-degrees to degrees
                 _last_heading_update_ms = _last_location_update_ms;
             }
-            // initialise _sysid if zero to sender's id
+            // initialize _sysid if zero to sender's id
             if (_sysid == 0) {
                 _sysid.set(msg.sysid);
                 _automatic_sysid = true;
@@ -401,12 +401,12 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 
     // ADDED FOR TESTING
     uint32_t tnow = AP_HAL::millis();
-    if (updated && !_updated_last)
+    if (updated) // && !_updated_last)
     {
         _time_between_updates_ms = tnow - _time_since_last_update;
         _time_since_last_update = tnow;
     }
-    _updated_last = updated;
+    // _updated_last = updated;
     ///////////////////
     
     if (updated) {
@@ -429,10 +429,10 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 // @Field: LonE: Vehicle longitude
 // @Field: AltE: Vehicle absolute altitude
         AP::logger().WriteStreaming("FOLL",
-                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE",  // labels
-                                               "sDUmnnnDUm",    // units
-                                               "F--B000--B",    // mults
-                                               "QLLifffLLi",    // fmt
+                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,gpss",  // labels
+                                               "sDUmnnnDUm-",    // units
+                                               "F--B000--B0",    // mults
+                                               "QLLifffLLiB",    // fmt
                                                AP_HAL::micros64(),
                                                _target_location.lat,
                                                _target_location.lng,
@@ -442,7 +442,8 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
                                                (double)_target_velocity_ned.z,
                                                loc_estimate.lat,
                                                loc_estimate.lng,
-                                               loc_estimate.alt
+                                               loc_estimate.alt,
+                                               _target_gps_fix_type
                                                );
     }
 }

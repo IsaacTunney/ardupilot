@@ -34,6 +34,7 @@ bool ModeFollow::init(const bool ignore_checks)
         return false;
     }
     allow_following = true;
+    target_was_acquired = true;
     i = 0;
 
     // Re-use guided mode's initialization
@@ -181,11 +182,11 @@ void ModeFollow::run()
         //     *Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
         //      (Degré de confiance proportionnel à son amplitude)
         //    **Éventuellement, pour augmenter vitesse calcul, mettre ces checks avant le reste des opérations ci-dessus
-        if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 1.0 ) // Only calculate if speed is significant enough
+        if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
             target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
-            // g2.follow.get_target_heading_deg(target_heading); // 0 to 360 deg
-            if ( abs(target_speed_bearing - target_heading) > 30 ) // Offset is too large, there is a problem!
+            // If offset is too large, there is a problem!   
+            if ( ( abs(target_speed_bearing - target_heading) > 30 ) || ( 360 - abs(target_speed_bearing - target_heading) > 30 ) ) 
             {
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "Offset too large between heading and velocity vector. Killing Follow Task.");
                 desired_velocity_neu_cms.zero();
@@ -198,15 +199,22 @@ void ModeFollow::run()
         {
             target_speed_bearing = 0; // Speed not high enough to determine a proper target speed bearing
         }
+        target_was_acquired = true;
     }
     else // Could not get target's distance and velocity
     {
-        if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
+        if (target_was_acquired == true) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
+        target_was_acquired = false;
     }
 
     // Printing stuff to the HUD:
-    if (i%200 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Target speed bearing: %4.2f deg", target_speed_bearing); }
-    if (i%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Time in between target msg updates: %4ld ms", g2.follow.get_time_between_updates_ms() ); }
+    // if (i%200 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Target speed bearing: %4.2f deg", target_speed_bearing); }
+    average_time_between_updates_ms += g2.follow.get_time_between_updates_ms();
+    if (i%200 == 0)
+    {
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %4ld Hz", 1/(average_time_between_updates_ms/200/1000) );
+        average_time_between_updates_ms = 0;
+    }
 
     // Log output at 10hz for ModeGuided commands
     // Note: Logs specific to ModeFollow are in AP_Follow library
