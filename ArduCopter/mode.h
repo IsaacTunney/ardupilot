@@ -1858,7 +1858,7 @@ private:
     float    target_speed_bearing;
     bool     allow_following;
     bool     target_was_acquired;
-    uint32_t average_time_between_updates_ms;
+    uint64_t time_last_ms;
 
 };
 

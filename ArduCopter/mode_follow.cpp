@@ -17,10 +17,14 @@
 // Initialize follow mode
 bool ModeFollow::init(const bool ignore_checks)
 {
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "MAX FOLLOW SPEED: %4d cm/s.", (int)g2.follow.get_max_speed_cms());
+
     if (!g2.follow.enabled()) {
         gcs().send_text(MAV_SEVERITY_WARNING, "Set FOLL_ENABLE = 1");
         return false;
     }
+
+    // Tests: gcs().send_text(MAV_SEVERITY_CRITICAL, "100/9=%4d", 100/9);
 
     // Check GPS status requirements before starting run loop:
     if ( AP::gps().status(0) < g2.follow.get_gpss_req() ) // Check Follower GPS status
@@ -36,6 +40,7 @@ bool ModeFollow::init(const bool ignore_checks)
     allow_following = true;
     target_was_acquired = true;
     i = 0;
+    time_last_ms = 0;
 
     // Re-use guided mode's initialization
     return ModeGuided::init(ignore_checks);
@@ -94,11 +99,14 @@ void ModeFollow::run()
 
         // Scale desired velocity to stay within horizontal speed limit
         float desired_speed_xy = safe_sqrt(sq(desired_velocity_neu_cms.x) + sq(desired_velocity_neu_cms.y));
-        if (!is_zero(desired_speed_xy) && (desired_speed_xy > pos_control->get_max_speed_xy_cms())) {
-            const float scalar_xy = pos_control->get_max_speed_xy_cms() / desired_speed_xy;
+        // if (!is_zero(desired_speed_xy) && (desired_speed_xy > pos_control->get_max_speed_xy_cms())) {
+        if (!is_zero(desired_speed_xy) && (desired_speed_xy > g2.follow.get_max_speed_cms())) {
+            // const float scalar_xy = pos_control->get_max_speed_xy_cms() / desired_speed_xy;
+            const float scalar_xy =  g2.follow.get_max_speed_cms() / desired_speed_xy;
             desired_velocity_neu_cms.x *= scalar_xy;
             desired_velocity_neu_cms.y *= scalar_xy;
-            desired_speed_xy = pos_control->get_max_speed_xy_cms();
+            // desired_speed_xy = pos_control->get_max_speed_xy_cms();
+            desired_speed_xy = g2.follow.get_max_speed_cms();            
         }
 
         // Limit desired velocity to be between maximum climb and descent rates
@@ -107,28 +115,29 @@ void ModeFollow::run()
         // Unit vector towards target position (i.e. vector to lead vehicle + offset)
         Vector3f dir_to_target_neu = dist_vec_offs_neu;
         const float dir_to_target_neu_len = dir_to_target_neu.length();
-        if (!is_zero(dir_to_target_neu_len)) {
-            dir_to_target_neu /= dir_to_target_neu_len;
-        }
+        if (!is_zero(dir_to_target_neu_len)) { dir_to_target_neu /= dir_to_target_neu_len; }
 
         // Create horizontal desired velocity vector (required for slow down calculations)
         Vector2f desired_velocity_xy_cms(desired_velocity_neu_cms.x, desired_velocity_neu_cms.y);
 
         // Create horizontal unit vector towards target (required for slow down calculations)
         Vector2f dir_to_target_xy(desired_velocity_xy_cms.x, desired_velocity_xy_cms.y);
-        if (!dir_to_target_xy.is_zero()) {
-            dir_to_target_xy.normalize();
-        }
+        if (!dir_to_target_xy.is_zero()) { dir_to_target_xy.normalize(); }
 
-        // Slow down horizontally as we approach target (use 1/2 of maximum deceleration for gentle slow down)
+        // Slow down horizontally as we approach target
+        // Default: 1/2 of maximum deceleration for gentle slow down
         const float dist_to_target_xy = Vector2f(dist_vec_offs_neu.x, dist_vec_offs_neu.y).length();
-        copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
-        // copy horizontal velocity limits back to 3d vector
+        // copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
+        copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 1.0f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
+        
+        // Copy horizontal velocity limits back to 3d vector
         desired_velocity_neu_cms.x = desired_velocity_xy_cms.x;
         desired_velocity_neu_cms.y = desired_velocity_xy_cms.y;
 
-        // Limit vertical desired_velocity_neu_cms to slow as we approach target (we use 1/2 of maximum deceleration for gentle slow down)
-        const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss() * 0.5f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
+        // Limit vertical desired_velocity_neu_cms to slow as we approach target
+        // Default: 1/2 of maximum deceleration for gentle slow down
+        // const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss() * 0.5f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
+        const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss() * 1.0f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
         desired_velocity_neu_cms.z = constrain_float(desired_velocity_neu_cms.z, -des_vel_z_max, des_vel_z_max);
 
         // Limit the velocity for obstacle/fence avoidance
@@ -185,8 +194,8 @@ void ModeFollow::run()
         if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
             target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
-            // If offset is too large, there is a problem!   
-            if ( ( abs(target_speed_bearing - target_heading) > 30 ) || ( 360 - abs(target_speed_bearing - target_heading) > 30 ) ) 
+            // If offset is too large, there is a problem!
+            if ( ( abs(target_speed_bearing - target_heading) > g2.follow.get_heading_err_deg() ) || ( 360 - abs(target_speed_bearing - target_heading) > g2.follow.get_heading_err_deg() ) ) 
             {
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "Offset too large between heading and velocity vector. Killing Follow Task.");
                 desired_velocity_neu_cms.zero();
@@ -209,11 +218,14 @@ void ModeFollow::run()
 
     // Printing stuff to the HUD:
     // if (i%200 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Target speed bearing: %4.2f deg", target_speed_bearing); }
-    average_time_between_updates_ms += g2.follow.get_time_between_updates_ms();
-    if (i%200 == 0)
+    // average_time_between_updates_ms += g2.follow.get_time_between_updates_ms();
+    uint32_t time_now_ms = AP_HAL::millis();
+    if (i%400 == 0)
     {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %4ld Hz", 1/(average_time_between_updates_ms/200/1000) );
-        average_time_between_updates_ms = 0;
+        uint32_t avg_time_ms = (time_now_ms-time_last_ms) / g2.follow.get_num_of_msg_received();
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %3ld Hz", 1000/avg_time_ms );
+        g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
+        time_last_ms = time_now_ms;
     }
 
     // Log output at 10hz for ModeGuided commands
@@ -231,7 +243,7 @@ void ModeFollow::run()
     //       position and velocity requests will be ignored while the vehicle is not in guided mode
     ModeGuided::set_velocity(desired_velocity_neu_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
     ModeGuided::run();
-
+    
     i++;
 }
 

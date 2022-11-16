@@ -128,12 +128,26 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     AP_GROUPINFO("_ALT_TYPE", 10, AP_Follow, _alt_type, AP_FOLLOW_ALT_TYPE_DEFAULT),
 #endif
 
-    // @Param: _GPS_STATUS_REQ
+    // @Param: _GPSS_REQ
     // @DisplayName: Follow Mode's minimal GPS status requirement
     // @Description: Minimal GPS status requirement accepted to enter Follow Mode or "Landing_on_target" mode. Ex: Value of 6 means you need rtk fix to be allowed to do Following.
     // @Values: 3:GPS-Fix, 6:RTK-Fix
     // @User: Standard
     AP_GROUPINFO("_GPSS_REQ", 12, AP_Follow, _gpss_req, 3),
+
+    // @Param: _MAX_SPEED_CMS
+    // @DisplayName: Follow Mode's maximum speed
+    // @Description: Follow Mode's maximum horizontal speed in cm/s (instead of pos_control->get_max_speed_xy_cms)
+    // @Values: 100 3500
+    // @User: Standard
+    AP_GROUPINFO("_MAX_SPEED_CMS", 13, AP_Follow, _max_speed_cms, 1250),
+
+    // @Param: _HEADING_ERR_DEG
+    // @DisplayName: Target's max heading error
+    // @Description: Target's max heading error relative to its velocity vector, in degrees
+    // @Values: 5 90
+    // @User: Standard
+    AP_GROUPINFO("_HEADING_ERR_DEG", 14, AP_Follow, _heading_err_deg, 30),
 
     AP_GROUPEND
 };
@@ -291,7 +305,7 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
     }
 
     // decode global-position-int message
-    bool updated = false;
+    bool mavlink_msg_updated = false;
 
     switch (msg.msgid)
     {
@@ -333,7 +347,7 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
                 _sysid.set(msg.sysid);
                 _automatic_sysid = true;
             }
-            updated = true;
+            mavlink_msg_updated = true;
             break;
         }
         case MAVLINK_MSG_ID_GPS_RAW_INT:
@@ -401,19 +415,24 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 
     // ADDED FOR TESTING
     uint32_t tnow = AP_HAL::millis();
-    if (updated) // && !_updated_last)
+    if (mavlink_msg_updated) // && !_updated_last)
     {
         _time_between_updates_ms = tnow - _time_since_last_update;
         _time_since_last_update = tnow;
+        _num_of_msg_received += 1;
     }
     // _updated_last = updated;
     ///////////////////
     
-    if (updated) {
+    if (mavlink_msg_updated) {
         // get estimated location and velocity
         Location loc_estimate{};
         Vector3f vel_estimate;
+        Vector3f dist_vec;      // vector to lead vehicle
+        Vector3f dist_vec_offs; // vector to lead vehicle + offset
+        Vector3f vel_of_target; // velocity of lead vehicle
         UNUSED_RESULT(get_target_location_and_velocity(loc_estimate, vel_estimate));
+        UNUSED_RESULT(get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target));
 
         // log lead's estimated vs reported position
 // @LoggerMessage: FOLL
@@ -428,22 +447,30 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 // @Field: LatE: Vehicle latitude
 // @Field: LonE: Vehicle longitude
 // @Field: AltE: Vehicle absolute altitude
+// @Field: Gpss: Target's GPS status
+// @Field: DN: Distance vector with offset, North
+// @Field: DE: Distance vector with offset, East
+// @Field: DD: Distance vector with offset, Down
         AP::logger().WriteStreaming("FOLL",
-                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,gpss",  // labels
-                                               "sDUmnnnDUm-",    // units
-                                               "F--B000--B0",    // mults
-                                               "QLLifffLLiB",    // fmt
+                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,gpss,DN,DE,DD",  // labels
+                                               "sDUmnnnDUm-mmm",    // units
+                                               "F--B000--B0000",    // mults
+                                               "QLLifffLLiBfff",    // fmt
                                                AP_HAL::micros64(),
-                                               _target_location.lat,
+                                               _target_location.lat, // Dernière position reçue par msg mavlink
                                                _target_location.lng,
                                                _target_location.alt,
-                                               (double)_target_velocity_ned.x,
+                                               (double)_target_velocity_ned.x, // Vitesse reçue par msg mavlink
                                                (double)_target_velocity_ned.y,
                                                (double)_target_velocity_ned.z,
-                                               loc_estimate.lat,
+                                               loc_estimate.lat, // Position projetée, sachant la vitesse
                                                loc_estimate.lng,
                                                loc_estimate.alt,
-                                               _target_gps_fix_type
+                                               _target_gps_fix_type,
+                                               (double)dist_vec_offs.x, // Distance entre véhicule et target WITH offset (doit tendre vers 0)
+                                               (double)dist_vec_offs.y,
+                                               (double)dist_vec_offs.z
+// Avec le target ces infos, devrait être capable de voir comportement PID à différentes vitesses
                                                );
     }
 }

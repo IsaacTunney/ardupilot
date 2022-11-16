@@ -51,7 +51,7 @@ public:
     void set_target_sysid(uint8_t sysid) { _sysid = sysid; }
 
     // Get mavlink id of target to follow
-    AP_Int16 get_target_sysid() { return _sysid; }
+    AP_Int8 get_target_sysid() { return _sysid; }
 
     // Get GPS status requirements
     AP_Int8 get_gpss_req() { return _gpss_req; }
@@ -59,7 +59,9 @@ public:
     // Get target's GPS fix type (passed through  a mavlink message)
     uint8_t get_target_gps_fix_type() { return _target_gps_fix_type; }
 
+    AP_Int16 get_max_speed_cms() { return _max_speed_cms; }
 
+    AP_Int8 get_heading_err_deg() { return _heading_err_deg; }
 
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
@@ -112,6 +114,11 @@ public:
     // get time in between target's position updates through mavlink
     uint32_t get_time_between_updates_ms() const { return _time_between_updates_ms; }
 
+    // get number of mavlink messages received, for frequency calculations
+    uint8_t get_num_of_msg_received() const { return _num_of_msg_received; }
+
+    void reset_num_of_msg_received() { _num_of_msg_received = 0; }
+
     // parameter list
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -135,7 +142,7 @@ private:
 
     // parameters
     AP_Int8     _enabled;           // 1 if this subsystem is enabled
-    AP_Int16    _sysid;             // target's mavlink system id (0 to use first sysid seen)
+    AP_Int8     _sysid;             // target's mavlink system id (0 to use first sysid seen)
     AP_Float    _dist_max;          // maximum distance to target.  targets further than this will be ignored
     AP_Int8     _offset_type;       // offset frame type (0:North-East-Down, 1:RelativeToLeadVehicleHeading)
     AP_Vector3f _offset;            // offset from lead vehicle in meters
@@ -143,6 +150,8 @@ private:
     AP_Int8     _alt_type;          // altitude source for follow mode
     AC_P        _p_pos;             // position error P controller
     AP_Int8     _gpss_req;          // GPS status requirement to allow entering Follow Mode
+    AP_Int16    _max_speed_cms;     // Max speed in Follow mode
+    AP_Int8     _heading_err_deg;   // Target's heading error relative to it's velocity vector, degrees
 
     // local variables
     bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
@@ -152,6 +161,7 @@ private:
     uint32_t _time_between_updates_ms; // To see at what rate mavlink messages are being updated
     uint32_t _time_since_last_update;
     bool _updated_last;             // Flag to keep in memory last state of mavlink msg update
+    int _num_of_msg_received;
     ///////////////////
     Location _target_location;      // last known location of target
     Vector3f _target_velocity_ned;  // last known velocity of target in NED frame in m/s
