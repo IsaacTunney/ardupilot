@@ -194,8 +194,9 @@ void ModeFollow::run()
         if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
             target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
-            // If offset is too large, there is a problem!
-            if ( ( abs(target_speed_bearing - target_heading) > g2.follow.get_heading_err_deg() ) || ( 360 - abs(target_speed_bearing - target_heading) > g2.follow.get_heading_err_deg() ) ) 
+            float heading_offset = abs(target_speed_bearing - target_heading);
+            if ( heading_offset > (360 - g2.follow.get_heading_err_deg()) ) { heading_offset = 360 - heading_offset; }
+            if ( heading_offset > g2.follow.get_heading_err_deg() ) // If offset is too large, there is a problem!
             {
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "Offset too large between heading and velocity vector. Killing Follow Task.");
                 desired_velocity_neu_cms.zero();

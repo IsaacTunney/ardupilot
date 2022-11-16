@@ -431,10 +431,13 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
         Vector3f dist_vec;      // vector to lead vehicle
         Vector3f dist_vec_offs; // vector to lead vehicle + offset
         Vector3f vel_of_target; // velocity of lead vehicle
+        float target_speed_bearing;
         UNUSED_RESULT(get_target_location_and_velocity(loc_estimate, vel_estimate));
         UNUSED_RESULT(get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target));
+        if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) { target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; } // 0 to 360 deg
+        else { target_speed_bearing = -1.0; }
 
-        // log lead's estimated vs reported position
+        // Log lead's estimated vs reported position
 // @LoggerMessage: FOLL
 // @Description: Follow library diagnostic data
 // @Field: TimeUS: Time since system startup
@@ -451,11 +454,13 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 // @Field: DN: Distance vector with offset, North
 // @Field: DE: Distance vector with offset, East
 // @Field: DD: Distance vector with offset, Down
+// @Field: THD: Target's heading, 0° (north) to 359° clockwise
+// @Field: TVHD: Target's velocity heading, 0° (north) to 359° clockwise
         AP::logger().WriteStreaming("FOLL",
-                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,gpss,DN,DE,DD",  // labels
-                                               "sDUmnnnDUm-mmm",    // units
-                                               "F--B000--B0000",    // mults
-                                               "QLLifffLLiBfff",    // fmt
+                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,gpss,DN,DE,DD,THD,TVHD",  // labels
+                                               "sDUmnnnDUm-mmmhh",    // units
+                                               "F--B000--B000000",    // mults
+                                               "QLLifffLLiBfffff",    // fmt
                                                AP_HAL::micros64(),
                                                _target_location.lat, // Dernière position reçue par msg mavlink
                                                _target_location.lng,
@@ -469,8 +474,10 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
                                                _target_gps_fix_type,
                                                (double)dist_vec_offs.x, // Distance entre véhicule et target WITH offset (doit tendre vers 0)
                                                (double)dist_vec_offs.y,
-                                               (double)dist_vec_offs.z
-// Avec le target ces infos, devrait être capable de voir comportement PID à différentes vitesses
+                                               (double)dist_vec_offs.z,
+                                               (double)_target_heading,
+                                               (double)target_speed_bearing
+// Avec ces infos, devrait être capable de voir comportement PID à différentes vitesses
                                                );
     }
 }
