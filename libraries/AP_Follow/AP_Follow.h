@@ -59,9 +59,9 @@ public:
     // Get target's GPS fix type (passed through  a mavlink message)
     uint8_t get_target_gps_fix_type() { return _target_gps_fix_type; }
 
-    AP_Int16 get_max_speed_cms() { return _max_speed_cms; }
+    AP_Int16 get_max_speed_cms() { return _spd_cms; }
 
-    AP_Int8 get_heading_err_deg() { return _heading_err_deg; }
+    AP_Int8 get_heading_err_deg() { return _hd_err_d; }
 
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
@@ -150,8 +150,8 @@ private:
     AP_Int8     _alt_type;          // altitude source for follow mode
     AC_P        _p_pos;             // position error P controller
     AP_Int8     _gpss_req;          // GPS status requirement to allow entering Follow Mode
-    AP_Int16    _max_speed_cms;     // Max speed in Follow mode
-    AP_Int8     _heading_err_deg;   // Target's heading error relative to it's velocity vector, degrees
+    AP_Int16    _spd_cms;           // Max speed in Follow mode
+    AP_Int8     _hd_err_d;   // Target's heading error relative to it's velocity vector, degrees
 
     // local variables
     bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)

@@ -135,19 +135,19 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_GPSS_REQ", 12, AP_Follow, _gpss_req, 3),
 
-    // @Param: _MAX_SPEED_CMS
+    // @Param: _SPD_CMS
     // @DisplayName: Follow Mode's maximum speed
     // @Description: Follow Mode's maximum horizontal speed in cm/s (instead of pos_control->get_max_speed_xy_cms)
     // @Values: 100 3500
     // @User: Standard
-    AP_GROUPINFO("_MAX_SPEED_CMS", 13, AP_Follow, _max_speed_cms, 1250),
+    AP_GROUPINFO("_SPD_CMS", 13, AP_Follow, _spd_cms, 1250),
 
-    // @Param: _HEADING_ERR_DEG
+    // @Param: _HD_ERR_D
     // @DisplayName: Target's max heading error
     // @Description: Target's max heading error relative to its velocity vector, in degrees
     // @Values: 5 90
     // @User: Standard
-    AP_GROUPINFO("_HEADING_ERR_DEG", 14, AP_Follow, _heading_err_deg, 30),
+    AP_GROUPINFO("_HD_ERR_D", 14, AP_Follow, _hd_err_d, 30),
 
     AP_GROUPEND
 };
