@@ -530,11 +530,49 @@ bool AP_Follow::get_offsets_ned(Vector3f &offset) const
         return true;
     }
 
-    // offset type is relative, exit if we cannot get vehicle's heading
+    // COMMENTED OUT FOR TESTING CODE BELOW
+    // // offset type is relative, exit if we cannot get vehicle's heading
+    // float target_heading_deg;
+    // if (!get_target_heading_deg(target_heading_deg)) {
+    //     return false;
+    // }
+
+    // NEW ALGO: USE VELOCITY BEARING AND HEADING TO CALCULATE OFFSET
+    // FOR TESTING
     float target_heading_deg;
-    if (!get_target_heading_deg(target_heading_deg)) {
-        return false;
+    float target_velocity;
+    float target_speed_bearing = get_bearing_cd(Vector2f{}, _target_velocity_ned.xy())/100; // 0 to 360 deg
+
+    if (get_target_heading_deg(target_heading_deg)) // offset type is relative
+    {
+        target_velocity = sqrt( sq(_target_velocity_ned.x) + sq(_target_velocity_ned.y) );
+        if ( target_velocity >= 2.0 ) // Only calculate new heading if speed is significant enough
+        {  
+            float heading_offset = abs(target_speed_bearing - target_heading_deg);
+            if ( heading_offset > (360 - 20) ) { heading_offset = 360 - heading_offset; } // Deal with "near-360-deg" zone
+            
+            if ( heading_offset > 20 ) // If large gap between target's heading and velocity bearing, trust only velocity heading!
+            {
+                target_heading_deg = target_speed_bearing;
+            }
+            else // Else, use both heading and velocity bearing with different weights
+            {  
+                float target_speed_bearing_weight = target_velocity/7; // Weight function of speed
+                if (target_speed_bearing_weight >= 1) { target_speed_bearing_weight = 1; }
+                target_heading_deg = target_speed_bearing * target_speed_bearing_weight + target_heading_deg * (1 - target_speed_bearing_weight);
+            }
+        }
     }
+    else
+    {
+        // If can't get heading but speed is high enough, use velocity vector to get target's heading
+        if ( target_velocity > 2 )
+        {
+            target_heading_deg = target_speed_bearing;
+        }
+        else { return false; } // exit if we cannot get vehicle's heading (either with heading or velocity bearing)
+    }
+    // END OF TEST
 
     // rotate offsets from vehicle's perspective to NED
     offset = rotate_vector(off, target_heading_deg);
