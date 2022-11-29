@@ -1151,7 +1151,6 @@ private:
     bool target_over_vehicle_has_been_reached();
     bool user_has_allowed_landing_on_vehicle();
 
-
     bool do_prelanding_verifications();
     bool RF_glitch_detected();
     bool drone_was_too_far_from_ground();
@@ -1199,10 +1198,16 @@ private:
 
     bool     land_pause;
     Vector2f horizontal_dist_from_target_with_offset_cm;
-    bool     target_acquired;
     bool     switchLandingState;
 
     uint32_t last_run_loop_ms;
+
+    // For following:
+    bool     allow_following;
+    bool     target_was_acquired;
+    bool     msg_target_reached_sent;
+    float    target_speed_bearing;
+    uint64_t time_last_ms;
 
 };
 
@@ -1853,12 +1858,14 @@ protected:
     uint32_t last_log_ms;   // system time of last time desired velocity was logging
 
 private:
+
     uint32_t last_run_loop_ms;
-    int      i;
+    int      runCount;
     float    target_speed_bearing;
     bool     allow_following;
     bool     target_was_acquired;
     uint64_t time_last_ms;
+    bool     msg_target_reached_sent;
 
 };
 

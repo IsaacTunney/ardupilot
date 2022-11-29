@@ -31,7 +31,10 @@ extern const AP_HAL::HAL& hal;
 
 #define AP_FOLLOW_ALTITUDE_TYPE_RELATIVE  1 // relative altitude is used by default   
 
-#define AP_FOLLOW_POS_P_DEFAULT 0.1f    // position error gain default
+#define AP_FOLLOW_POS_P_DEFAULT 0.1f    // position error default gain P
+#define AP_FOLLOW_POS_D_DEFAULT 0.001f  // position error default gain D
+
+#define AP_FOLLOW_MAX_SPEED 1250        // Max speed allowed for following, in cm/s (=45 km/h)
 
 #if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
 #define AP_FOLLOW_ALT_TYPE_DEFAULT 0
@@ -58,7 +61,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @Description: Follow target's mavlink system id
     // @Range: 0 255
     // @User: Standard
-    AP_GROUPINFO("_SYSID", 3, AP_Follow, _sysid, 0),
+    AP_GROUPINFO("_SYSID", 3, AP_Follow, _sysid, 2),
 
     // 4 is reserved for MARGIN parameter
 
@@ -140,7 +143,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @Description: Follow Mode's maximum horizontal speed in cm/s (instead of pos_control->get_max_speed_xy_cms)
     // @Values: 100 3500
     // @User: Standard
-    AP_GROUPINFO("_SPD_CMS", 13, AP_Follow, _spd_cms, 1250),
+    AP_GROUPINFO("_SPD_CMS", 13, AP_Follow, _spd_cms, AP_FOLLOW_MAX_SPEED),
 
     // @Param: _HD_ERR_D
     // @DisplayName: Target's max heading error
@@ -148,6 +151,13 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @Values: 5 90
     // @User: Standard
     AP_GROUPINFO("_HD_ERR_D", 14, AP_Follow, _hd_err_d, 30),
+
+    // @Param: POS_D
+    // @DisplayName: D gain for position controller
+    // @Description: D gain for position controller
+    // @Values: 0 1
+    // @User: Standard
+    AP_GROUPINFO("_POS_D", 15, AP_Follow, _d_pos, AP_FOLLOW_POS_D_DEFAULT), //10x smaller than default P gain to start with
 
     AP_GROUPEND
 };
@@ -431,16 +441,16 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
         Vector3f dist_vec;      // vector to lead vehicle
         Vector3f dist_vec_offs; // vector to lead vehicle + offset
         Vector3f vel_of_target; // velocity of lead vehicle
-        float target_speed_bearing;
+        // float target_speed_bearing;
         UNUSED_RESULT(get_target_location_and_velocity(loc_estimate, vel_estimate));
         UNUSED_RESULT(get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target));
-        if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) { target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; } // 0 to 360 deg
-        else { target_speed_bearing = -1.0; }
+        // if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) { target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; } // 0 to 360 deg
+        // else { target_speed_bearing = -1.0; }
 
         // Log lead's estimated vs reported position
 // @LoggerMessage: FOLL
 // @Description: Follow library diagnostic data
-// @Field: TimeUS: Time since system startup
+// @Field: Tus: Time since system startup
 // @Field: Lat: Target latitude
 // @Field: Lon: Target longitude
 // @Field: Alt: Target absolute altitude
@@ -450,17 +460,15 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 // @Field: LatE: Vehicle latitude
 // @Field: LonE: Vehicle longitude
 // @Field: AltE: Vehicle absolute altitude
-// @Field: Gpss: Target's GPS status
 // @Field: DN: Distance vector with offset, North
 // @Field: DE: Distance vector with offset, East
 // @Field: DD: Distance vector with offset, Down
 // @Field: THD: Target's heading, 0° (north) to 359° clockwise
-// @Field: TVHD: Target's velocity heading, 0° (north) to 359° clockwise
         AP::logger().WriteStreaming("FOLL",
-                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,gpss,DN,DE,DD,THD,TVHD",  // labels
-                                               "sDUmnnnDUm-mmmhh",    // units
-                                               "F--B000--B000000",    // mults
-                                               "QLLifffLLiBfffff",    // fmt
+                                               "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,DN,DE,DD",  // labels
+                                               "sDUmnnnDUmmmm",    // units
+                                               "F--B000--B000",    // mults
+                                               "QLLifffLLifff",    // fmt
                                                AP_HAL::micros64(),
                                                _target_location.lat, // Dernière position reçue par msg mavlink
                                                _target_location.lng,
@@ -471,12 +479,11 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
                                                loc_estimate.lat, // Position projetée, sachant la vitesse
                                                loc_estimate.lng,
                                                loc_estimate.alt,
-                                               _target_gps_fix_type,
                                                (double)dist_vec_offs.x, // Distance entre véhicule et target WITH offset (doit tendre vers 0)
                                                (double)dist_vec_offs.y,
-                                               (double)dist_vec_offs.z,
-                                               (double)_target_heading,
-                                               (double)target_speed_bearing
+                                               (double)dist_vec_offs.z
+                                               //(double)_target_heading
+                                                // (double)target_speed_bearing
 // Avec ces infos, devrait être capable de voir comportement PID à différentes vitesses
                                                );
     }

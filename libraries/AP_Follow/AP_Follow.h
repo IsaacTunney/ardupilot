@@ -63,6 +63,8 @@ public:
 
     AP_Int8 get_heading_err_deg() { return _hd_err_d; }
 
+    AP_Float get_pos_d() { return _d_pos; }
+    
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
 
@@ -148,10 +150,11 @@ private:
     AP_Vector3f _offset;            // offset from lead vehicle in meters
     AP_Int8     _yaw_behave;        // following vehicle's yaw/heading behaviour (see YAW_BEHAVE enum)
     AP_Int8     _alt_type;          // altitude source for follow mode
-    AC_P        _p_pos;             // position error P controller
+    AC_P        _p_pos;             // Position error proportional gain (kP)
     AP_Int8     _gpss_req;          // GPS status requirement to allow entering Follow Mode
     AP_Int16    _spd_cms;           // Max speed in Follow mode
-    AP_Int8     _hd_err_d;   // Target's heading error relative to it's velocity vector, degrees
+    AP_Int8     _hd_err_d;          // Target's heading error relative to it's velocity vector, degrees
+    AP_Float    _d_pos;             // D gain for mode Follow controller
 
     // local variables
     bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
