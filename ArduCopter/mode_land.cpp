@@ -5,6 +5,11 @@
 // Initialise land controller
 bool ModeLand::init(bool ignore_checks)
 {
+
+    // For now, do not use rangefinder when landing on vehicle
+    use_rangefinder = false;
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Not using rangefinder.");
+
     // Check (only once) if we have GPS to decide on which landing sequence to execute
     control_position = copter.position_ok();
     // **Éventuellement, seulement accepter le landing AVEC GPS et RANGEFINDER!
@@ -46,7 +51,7 @@ bool ModeLand::init(bool ignore_checks)
     #endif
 
     #if !(RANGEFINDER_ENABLED == ENABLED)
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder not enabled!");
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder not enabled!"); // Set in the ardupilot code directly, NOT in parameters
     #endif
 
     if (g.landing_type == VEHICLE)
@@ -97,6 +102,12 @@ void ModeLand::exit()
 // flightmode->run() is updated in the fast_loop of Copter.cpp
 void ModeLand::run()
 {
+    if (use_rangefinder)
+    {
+        height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
+        for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; } // Managing buffer for rangefinder distances:
+        RFdistance_buffer[0] = height_above_ground_cm;
+    }
     if (control_position)
     {
         if (g.landing_type == VEHICLE) { landing_on_moving_vehicle_run(); }
@@ -109,15 +120,15 @@ void ModeLand::run()
     lsmCount++;
     runCount++;
 
-    // Checking rates (should expect around 200 to 400 Hz)
-    uint32_t time_now = AP_HAL::millis();
-    if (runCount%100==0)
-    {
-        float period = (time_now-last_run_loop_ms)/100;
-        // gcs().send_text(MAV_SEVERITY_CRITICAL, "Period: %4.2f ms.", period);
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Loop rate: %5.2f Hz", (1000/period) );
-        last_run_loop_ms = time_now;
-    }
+    // // Checking rates (should expect around 200 to 400 Hz)
+    // uint32_t time_now = AP_HAL::millis();
+    // if (runCount%100==0)
+    // {
+    //     float period = (time_now-last_run_loop_ms)/100;
+    //     // gcs().send_text(MAV_SEVERITY_CRITICAL, "Period: %4.2f ms.", period);
+    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Loop rate: %5.2f Hz", (1000/period) );
+    //     last_run_loop_ms = time_now;
+    // }
 }
 
 //-------------------------------------------------------------------------
@@ -128,10 +139,7 @@ void ModeLand::run()
 // Frequency: 100hz or more
 void ModeLand::landing_with_gps_run()
 {
-    // height_above_ground_cm = copter.current_loc.alt;
-    height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
-
-    // STATE MACHINE:
+    // Landing state machine:
     run_landing_state_machine();
 
     // POST-LANDING SAFETY CHECKS:
@@ -158,23 +166,23 @@ void ModeLand::landing_with_gps_run()
     // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
     attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
 
-    // Managing buffer for rangefinder distances:
-    for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
-    RFdistance_buffer[0] = height_above_ground_cm;
-    // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF buffer: %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld, %4ld", RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4], RFdistance_buffer[5], RFdistance_buffer[6], RFdistance_buffer[7], RFdistance_buffer[8], RFdistance_buffer[9]);
+    // // Managing buffer for rangefinder distances:
+    // if (use_rangefinder)
+    // {
+    //     for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
+    //     RFdistance_buffer[0] = height_above_ground_cm;
+    // }
 }
 
 // LAND CONTROLLER WITH NO GPS - Pilot controls roll and pitch angles
 // Frequency: 100hz or more
 void ModeLand::landing_without_gps_run()
 {
-    float   target_roll = 0.0f, target_pitch = 0.0f, target_yaw_rate = 0;
-    // height_above_ground_cm = copter.current_loc.alt;
-    height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
+    float target_roll = 0.0f, target_pitch = 0.0f, target_yaw_rate = 0;
 
     process_pilot_inputs(target_roll, target_pitch, target_yaw_rate);
 
-    // STATE MACHINE:
+    // Landing state machine:
     run_landing_state_machine();
 
     // POST-LANDING SAFETY CHECKS: Landing detector
@@ -201,19 +209,18 @@ void ModeLand::landing_without_gps_run()
     // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
     attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
 
-    // Managing buffer for rangefinder distances:
-    for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
-    RFdistance_buffer[0] = height_above_ground_cm;
-    // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF buffer: %4ld, %4ld, %4ld, %4ld, %4ld", ...
-    //       ... RFdistance_buffer[0], RFdistance_buffer[1], RFdistance_buffer[2], RFdistance_buffer[3], RFdistance_buffer[4]);
+    // // Managing buffer for rangefinder distances:
+    // if (use_rangefinder)
+    // {
+    //     for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
+    //     RFdistance_buffer[0] = height_above_ground_cm;
+    // }
 }
 
 // LAND CONTROLLER WITH GPS FOR LANDING ON MOVING TARGET - Guided mode commands for horizontal control and standard z-controller for altitude
 // Frequency: 100hz or more
 void ModeLand::landing_on_moving_vehicle_run()
-{
-    height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
-    
+{ 
     // SAFETY CHECKS:
     if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
     {
@@ -255,9 +262,9 @@ void ModeLand::landing_on_moving_vehicle_run()
     }
     if (is_disarmed_or_landed()) { make_safe_ground_handling(); }
 
-    // Managing buffer for rangefinder distances:
-    for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
-    RFdistance_buffer[0] = height_above_ground_cm;
+    // // Managing buffer for rangefinder distances:
+    // for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
+    // RFdistance_buffer[0] = height_above_ground_cm;
 
     // Managing the switch of landing states:
     if (landingOnVehicle_previousState != landingOnVehicle_state) { switchLandingState = true; }
@@ -624,8 +631,12 @@ void ModeLand::run_landing_state_machine()
             activate_rvt_countertorque = false;
             activate_rvt               = false;
 
-            // Do pre-landing checks and wait for 100 iterations to populate Rangefinder buffer:
-            if ( do_prelanding_verifications() && lsmCount%100==0 ) { state = DESCENT; lsmCount = 0; }
+            if (use_rangefinder)
+            {
+                // Do pre-landing checks and wait for 100 iterations to populate Rangefinder buffer
+                if ( do_prelanding_verifications() && lsmCount%100==0 ) { state = DESCENT; lsmCount = 0; }
+            }
+            else { state = DESCENT; lsmCount = 0; }
 
             break;
 
@@ -633,32 +644,40 @@ void ModeLand::run_landing_state_machine()
 
             if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT"); }
 
-            height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
-
-            if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
-
-            if ( RF_glitch_detected() )
+            //
+            // height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
+            if (use_rangefinder)
             {
-                state = DESCENT_WITHOUT_RF;
-                gcs().send_text(MAV_SEVERITY_CRITICAL, "Switched to landing without RF");
-                lsmCount = 0;  
-                break;         
-            }
-            
-            if (height_above_ground_cm <= 70) // Continue normal landing procedure
-            {
-                if (!drone_was_too_far_from_ground())
-                {
-                    state = COUNTDOWN;
-                    countdown_start  = millis();
-                    lsmCount = 0;
-                }
-                else // Rangefinder glitch detected, switch to landing without rangefinder
+                if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RNGFND DIST : %5.1f cm", (double)height_above_ground_cm); }
+
+                if ( RF_glitch_detected() )
                 {
                     state = DESCENT_WITHOUT_RF;
                     gcs().send_text(MAV_SEVERITY_CRITICAL, "Switched to landing without RF");
-                    lsmCount = 0;
+                    lsmCount = 0;  
+                    break;         
                 }
+                
+                if (height_above_ground_cm <= 70) // Continue normal landing procedure
+                {
+                    if (!drone_was_too_far_from_ground())
+                    {
+                        state = COUNTDOWN;
+                        countdown_start  = millis();
+                        lsmCount = 0;
+                    }
+                    else // Rangefinder glitch detected, switch to landing without rangefinder
+                    {
+                        state = DESCENT_WITHOUT_RF;
+                        gcs().send_text(MAV_SEVERITY_CRITICAL, "Switched to landing without RF");
+                        lsmCount = 0;
+                    }
+                }
+            }
+            else
+            {
+                state = DESCENT_WITHOUT_RF;
+                lsmCount = 0;   
             }
 
             break;
@@ -784,7 +803,7 @@ void ModeLand::run_landing_state_machine()
     } 
 }
 
-bool ModeLand::do_prelanding_verifications()
+bool ModeLand::do_prelanding_verifications() // For roofs and icebergs, not vehicles
 {
     if ( copter.rangefinder_alt_ok() )  // need RF to start procedure
     {

@@ -33,6 +33,7 @@ extern const AP_HAL::HAL& hal;
 
 #define AP_FOLLOW_POS_P_DEFAULT 0.1f    // position error default gain P
 #define AP_FOLLOW_POS_D_DEFAULT 0.001f  // position error default gain D
+#define AP_FOLLOW_GPS_DLAY_DEFAULT 0    // GLS delay that causes offset between target's estimated position and true position in the real world
 
 #define AP_FOLLOW_MAX_SPEED 1250        // Max speed allowed for following, in cm/s (=45 km/h)
 
@@ -159,6 +160,13 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_POS_D", 15, AP_Follow, _d_pos, AP_FOLLOW_POS_D_DEFAULT), //10x smaller than default P gain to start with
 
+    // @Param: GPS_DELAY
+    // @DisplayName: Manual GPS delay
+    // @Description: Manual GPS delay to be set by the user, based on user's feeling of how close the drone is from the target
+    // @Values: 
+    // @User: Standard
+    AP_GROUPINFO("_GPS_DELAY", 16, AP_Follow, _gps_delay, AP_FOLLOW_GPS_DLAY_DEFAULT),
+
     AP_GROUPEND
 };
 
@@ -208,6 +216,11 @@ bool AP_Follow::get_target_location_and_velocity(Location &loc, Vector3f &vel_ne
     Location last_loc = _target_location;
     last_loc.offset(vel_ned.x * dt, vel_ned.y * dt);
     last_loc.alt -= vel_ned.z * 100.0f * dt; // convert m/s to cm/s, multiply by dt.  minus because NED
+
+    // Add offset caused by GPS delay (time it takes for the GPS on the target to make it's correction with
+    // the RTK (processing time), then sends it to the target pixhawk's EKF to estimate the true positon,
+    // and then send it through 1 telemetry link to the drone follower.
+    last_loc.offset(vel_ned.x * _gps_delay, vel_ned.y * _gps_delay);
 
     // return latest position estimate
     loc = last_loc;
@@ -539,14 +552,15 @@ bool AP_Follow::get_offsets_ned(Vector3f &offset) const
 
     // NEW ALGO: USE VELOCITY BEARING AND HEADING TO CALCULATE OFFSET
     // FOR TESTING
+    // Offset type is relative
     float target_heading_deg;
     float target_velocity;
     float target_speed_bearing = get_bearing_cd(Vector2f{}, _target_velocity_ned.xy())/100; // 0 to 360 deg
+    target_velocity = sqrt( sq(_target_velocity_ned.x) + sq(_target_velocity_ned.y) );
 
-    if (get_target_heading_deg(target_heading_deg)) // offset type is relative
-    {
-        target_velocity = sqrt( sq(_target_velocity_ned.x) + sq(_target_velocity_ned.y) );
-        if ( target_velocity >= 2.0 ) // Only calculate new heading if speed is significant enough
+    if (get_target_heading_deg(target_heading_deg)) // If able to get target's heading
+    {   
+        if ( target_velocity >= 1.0 ) // Only calculate new heading if speed is significant enough
         {  
             float heading_offset = abs(target_speed_bearing - target_heading_deg);
             if ( heading_offset > (360 - 20) ) { heading_offset = 360 - heading_offset; } // Deal with "near-360-deg" zone
@@ -557,16 +571,16 @@ bool AP_Follow::get_offsets_ned(Vector3f &offset) const
             }
             else // Else, use both heading and velocity bearing with different weights
             {  
-                float target_speed_bearing_weight = target_velocity/7; // Weight function of speed
+                float target_speed_bearing_weight = target_velocity/3; // Weight function of speed
                 if (target_speed_bearing_weight >= 1) { target_speed_bearing_weight = 1; }
                 target_heading_deg = target_speed_bearing * target_speed_bearing_weight + target_heading_deg * (1 - target_speed_bearing_weight);
             }
         }
     }
-    else
+    else // Unable to get target's heading
     {
-        // If can't get heading but speed is high enough, use velocity vector to get target's heading
-        if ( target_velocity > 2 )
+        // If can't get heading but speed is high enough, use velocity vector to estimate heading
+        if ( target_velocity > 1 )
         {
             target_heading_deg = target_speed_bearing;
         }
@@ -575,7 +589,7 @@ bool AP_Follow::get_offsets_ned(Vector3f &offset) const
     // END OF TEST
 
     // rotate offsets from vehicle's perspective to NED
-    offset = rotate_vector(off, target_heading_deg);
+    offset = rotate_vector(off, target_heading_deg); // Only when offset type is relative
     return true;
 }
 

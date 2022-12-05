@@ -155,6 +155,7 @@ private:
     AP_Int16    _spd_cms;           // Max speed in Follow mode
     AP_Int8     _hd_err_d;          // Target's heading error relative to it's velocity vector, degrees
     AP_Float    _d_pos;             // D gain for mode Follow controller
+    AP_Int8     _gps_delay;         // GPS delay to be manually set by user
 
     // local variables
     bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
