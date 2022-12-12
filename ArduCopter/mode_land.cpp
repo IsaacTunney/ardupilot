@@ -7,8 +7,8 @@ bool ModeLand::init(bool ignore_checks)
 {
 
     // For now, do not use rangefinder when landing on vehicle
-    use_rangefinder = false;
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Not using rangefinder.");
+    if (g.land_use_rf == 1) { use_rangefinder = true; }
+    else { use_rangefinder = false; gcs().send_text(MAV_SEVERITY_CRITICAL, "Not using rangefinder."); }
 
     // Check (only once) if we have GPS to decide on which landing sequence to execute
     control_position = copter.position_ok();
@@ -37,8 +37,8 @@ bool ModeLand::init(bool ignore_checks)
     activate_rvt                = false;
     land_pause                  = false;
 
-    rvt_duration                = 2000; // Duration of rvt after landing, milliseconds
-    countdown_duration          = ( 70.0 - (double)g.shutdown_height_cm ) / (double)g.land_speed * 1000.0; // milliseconds
+    rvt_duration                = 10000; // Duration of rvt after landing, milliseconds
+    countdown_duration          = ( 70.0 - (double)g.land_shutdown_cm) / (double)g.land_speed * 1000.0; // milliseconds
     gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown duration (const): %4.2d milliseconds", (int)countdown_duration);
     dropping_max_duration       = 500; // milliseconds
 
@@ -54,7 +54,7 @@ bool ModeLand::init(bool ignore_checks)
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder not enabled!"); // Set in the ardupilot code directly, NOT in parameters
     #endif
 
-    if (g.landing_type == VEHICLE)
+    if (g.land_type == VEHICLE)
     {
         if (!g2.follow.enabled())
         {
@@ -93,7 +93,7 @@ void ModeLand::exit()
     shutdown_motors             = false;
     activate_rvt_countertorque  = false;
     activate_rvt                = false;
-    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
     gcs().send_text(MAV_SEVERITY_WARNING, "Exit mode landing");
 }
 
@@ -110,7 +110,7 @@ void ModeLand::run()
     }
     if (control_position)
     {
-        if (g.landing_type == VEHICLE) { landing_on_moving_vehicle_run(); }
+        if (g.land_type == VEHICLE) { landing_on_moving_vehicle_run(); }
         else { landing_with_gps_run(); }
     }
     else
@@ -164,7 +164,7 @@ void ModeLand::landing_with_gps_run()
     }
 
     // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
-    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
 
     // // Managing buffer for rangefinder distances:
     // if (use_rangefinder)
@@ -207,7 +207,7 @@ void ModeLand::landing_without_gps_run()
     attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
     // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
-    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
 
     // // Managing buffer for rangefinder distances:
     // if (use_rangefinder)
@@ -248,7 +248,7 @@ void ModeLand::landing_on_moving_vehicle_run()
             follow_target_2D();
             run_landing_state_machine();
             land_run_vertical_control(land_pause);
-            attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.rvt_pwm);
+            attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
             break;
         default:
             break;

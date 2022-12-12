@@ -377,9 +377,10 @@ public:
 
         k_param_vehicle = 257, // vehicle common block of parameters
 
-        k_param_rvt_pwm = 258, // Param to set PWM of motors during REVERSE THRUST (landing sequence)
-        k_param_shutdown_height_cm = 259,
-        k_param_landing_type = 260,
+        k_param_land_rvt_pwm = 258, // Param to set PWM of motors during REVERSE THRUST (landing sequence)
+        k_param_land_shutdown_cm = 259,
+        k_param_land_type = 260,
+        k_param_land_use_rf = 261,
         
 
         // the k_param_* space is 9-bits in size
@@ -460,9 +461,10 @@ public:
     AP_Int16        gcs_pid_mask;
 
     // New parameters added for landing technology:
-    AP_Int16        rvt_pwm;
-    AP_Int16        shutdown_height_cm;
-    AP_Int8         landing_type;
+    AP_Int16        land_rvt_pwm;
+    AP_Int16        land_shutdown_cm;
+    AP_Int8         land_type;
+    AP_Int8         land_use_rf;
 
 // ********** COMMENTED OUT FOR BENCH TEST MODE **********
 // #if MODE_THROW_ENABLED == ENABLED

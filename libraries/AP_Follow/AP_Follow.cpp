@@ -33,7 +33,6 @@ extern const AP_HAL::HAL& hal;
 
 #define AP_FOLLOW_POS_P_DEFAULT 0.1f    // position error default gain P
 #define AP_FOLLOW_POS_D_DEFAULT 0.001f  // position error default gain D
-#define AP_FOLLOW_GPS_DLAY_DEFAULT 0    // GLS delay that causes offset between target's estimated position and true position in the real world
 
 #define AP_FOLLOW_MAX_SPEED 1250        // Max speed allowed for following, in cm/s (=45 km/h)
 
@@ -160,12 +159,12 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_POS_D", 15, AP_Follow, _d_pos, AP_FOLLOW_POS_D_DEFAULT), //10x smaller than default P gain to start with
 
-    // @Param: GPS_DELAY
+    // @Param: _DELAY
     // @DisplayName: Manual GPS delay
     // @Description: Manual GPS delay to be set by the user, based on user's feeling of how close the drone is from the target
     // @Values: 
     // @User: Standard
-    AP_GROUPINFO("_GPS_DELAY", 16, AP_Follow, _gps_delay, AP_FOLLOW_GPS_DLAY_DEFAULT),
+    AP_GROUPINFO("_DELAY", 16, AP_Follow, _gps_delay, 160),
 
     AP_GROUPEND
 };
@@ -220,7 +219,7 @@ bool AP_Follow::get_target_location_and_velocity(Location &loc, Vector3f &vel_ne
     // Add offset caused by GPS delay (time it takes for the GPS on the target to make it's correction with
     // the RTK (processing time), then sends it to the target pixhawk's EKF to estimate the true positon,
     // and then send it through 1 telemetry link to the drone follower.
-    last_loc.offset(vel_ned.x * _gps_delay, vel_ned.y * _gps_delay);
+    last_loc.offset(vel_ned.x * _gps_delay/1000, vel_ned.y * _gps_delay/1000);
 
     // return latest position estimate
     loc = last_loc;

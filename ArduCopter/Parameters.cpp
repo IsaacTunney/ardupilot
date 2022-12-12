@@ -104,29 +104,37 @@ const AP_Param::Info Copter::var_info[] = {
     // @Bitmask: 0:Roll,1:Pitch,2:Yaw,3:AccelZ
     GSCALAR(gcs_pid_mask,           "GCS_PID_MASK",     0),
 
-    // @Param: RVT_PWM
+    // @Param: LAND_RVT_PWM
     // @DisplayName: Reverse thrust PWM
     // @Description: Set the PWM of reverse thrust for custom landing mode. Between 1000 and 1500.
     // @User: Advanced
     // @Units: PWM
     // @Range: 1000 1500
-    GSCALAR(rvt_pwm, "RVT_PWM", RVT_PWM_DEFAULT),
+    GSCALAR(land_rvt_pwm, "LAND_RVT_PWM", LAND_RVT_PWM_DEFAULT),
 
-    // @Param: SHUTDOWN_HEIGHT
+    // @Param: LAND_SHUTDOWN_CM
     // @DisplayName: Landing shutdown height
     // @Description: The height at which motors are shutdown during landing sequence
     // @User: Advanced
     // @Units: cm
     // @Range: 0 50
-    GSCALAR(shutdown_height_cm, "SHUTDOWN_HEIGHT", SHUTDOWN_HEIGHT_DEFAULT),
+    GSCALAR(land_shutdown_cm, "LAND_SHUTDOWN_CM", LAND_SHUTDOWN_HEIGHT_DEFAULT),
 
-    // @Param: LANDING_TYPE
-    // @DisplayName: Landing type
+    // @Param: LAND_TYPE
+    // @DisplayName: Land type
     // @Description: The type of landing to perform: on roofs (or ice/rough terrain), on boats, or on moving vehicle
     // @User: Advanced
     // @Units: No units
     // @Range: ROOF, BOAT or VEHICLE
-    GSCALAR(landing_type, "LANDING_TYPE", LANDING_TYPE_DEFAULT),
+    GSCALAR(land_type, "LAND_TYPE", LAND_TYPE_DEFAULT),
+
+    // @Param: LAND_USE_RNGFND
+    // @DisplayName: Rangefinder use during landing
+    // @Description: Rangefinder used or not during landing sequence
+    // @User: Advanced
+    // @Units: No units
+    // @Range: 1 (use) or 0 (don't use)
+    GSCALAR(land_use_rf, "LAND_USE_RNGFND", LAND_USE_RNGFND_DEFAULT),
 
 #if MODE_RTL_ENABLED == ENABLED
     // @Param: RTL_ALT
