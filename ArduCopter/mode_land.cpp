@@ -37,7 +37,7 @@ bool ModeLand::init(bool ignore_checks)
     activate_rvt                = false;
     land_pause                  = false;
 
-    rvt_duration                = 10000; // Duration of rvt after landing, milliseconds
+    rvt_duration                = 6000; // Duration of rvt after landing, milliseconds
     countdown_duration          = ( 70.0 - (double)g.land_shutdown_cm) / (double)g.land_speed * 1000.0; // milliseconds
     gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown duration (const): %4.2d milliseconds", (int)countdown_duration);
     dropping_max_duration       = 500; // milliseconds
@@ -119,16 +119,6 @@ void ModeLand::run()
     }
     lsmCount++;
     runCount++;
-
-    // // Checking rates (should expect around 200 to 400 Hz)
-    // uint32_t time_now = AP_HAL::millis();
-    // if (runCount%100==0)
-    // {
-    //     float period = (time_now-last_run_loop_ms)/100;
-    //     // gcs().send_text(MAV_SEVERITY_CRITICAL, "Period: %4.2f ms.", period);
-    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Loop rate: %5.2f Hz", (1000/period) );
-    //     last_run_loop_ms = time_now;
-    // }
 }
 
 //-------------------------------------------------------------------------
@@ -616,7 +606,7 @@ bool ModeLand::target_over_vehicle_has_been_reached()
 
 bool ModeLand::user_has_allowed_landing_on_vehicle()
 {
-    return true; //read rc channel to receive input from user
+    return true; // Read rc channel to receive input from user
 }
 
 void ModeLand::run_landing_state_machine()
@@ -686,7 +676,7 @@ void ModeLand::run_landing_state_machine()
 
             if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : DESCENT_WITHOUT_RF"); }
 
-            if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; lsmCount = 0; } // Safety au cas où touche sol avant la fin du countdown
+            if ( is_quad_touching_ground() ) { state = TOUCHING_GROUND; lsmCount = 0; } // Safety au cas où touche sol avant la fin du countdown
 
             break;
 
@@ -697,7 +687,7 @@ void ModeLand::run_landing_state_machine()
             countdown_chrono = millis() - countdown_start;
             // if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
 
-            if ( is_quad_touching_ground() || is_quad_tilting() ) { state = TOUCHING_GROUND; lsmCount = 0; } // Safety au cas où touche sol avant la fin du countdown
+            if ( is_quad_touching_ground() ) { state = TOUCHING_GROUND; lsmCount = 0; } // Safety au cas où touche sol avant la fin du countdown
 
             if ( countdown_chrono >= (uint32_t)countdown_duration )
             {
@@ -741,9 +731,7 @@ void ModeLand::run_landing_state_machine()
             rvt_chrono = millis()-rvt_start;
 
             if ( is_quad_flipping() ) { state = FLIPPING; lsmCount = 0; }
-
-            //if ( rvt_chrono <= rvt_duration ) { g.rvt_pwm = 1400; } // 90% reverse throttle
-            //else
+            
             if ( rvt_chrono > rvt_duration ) { state = LANDED_BUT_STILL_ALERT; lsmCount = 0; } // Done with RVT, switch to LANDED state.
 
             if(lsmCount%100 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "RVT Timer : %4.2f milliseconds", (double)rvt_chrono ); }
@@ -883,10 +871,10 @@ bool ModeLand::is_quad_dropping() // Returns true if speed > 10 cm/s
 
 bool ModeLand::is_quad_touching_ground() // Returns true if 
 {
-    bool condition1 = ( ( ahrs.get_gyro_latest().length() ) >= 3.1416 ); // Spike in angular rate (rad/s)
-    bool condition2 = ( ( ahrs.get_accel().length() ) >= 1.5*9.81 ); // Spike in acceleration
+    // bool condition1 = ( ( ahrs.get_gyro_latest().length() ) >= 3.1416 ); // Spike in angular rate (rad/s)
+    bool condition2 = ( ( ahrs.get_accel().length() ) >= 1.65*9.81 ); // Spike in acceleration
     // bool condition3 = ( speedZ <= XY ); // speed?
-    return condition1 || condition2;
+    return condition2;
     
 }
 
