@@ -24,8 +24,11 @@
 #include "AP_WindVane_NMEA.h"
 
 #include <AP_AHRS/AP_AHRS.h>
+#include <AP_HAL/AP_HAL.h>
 #include <AP_Logger/AP_Logger.h>
 #include <AP_SerialManager/AP_SerialManager.h>
+
+extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_WindVane::var_info[] = {
 
@@ -380,7 +383,7 @@ void AP_WindVane::record_home_heading()
 bool AP_WindVane::start_direction_calibration()
 {
     if (enabled() && (_calibration == 0)) {
-        _calibration = 1;
+        _calibration.set(1);
         return true;
     }
     return false;
@@ -390,7 +393,7 @@ bool AP_WindVane::start_direction_calibration()
 bool AP_WindVane::start_speed_calibration()
 {
     if (enabled() && (_calibration == 0)) {
-        _calibration = 2;
+        _calibration.set(2);
         return true;
     }
     return false;

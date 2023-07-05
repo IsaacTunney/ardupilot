@@ -44,6 +44,7 @@ public:
     AP_Float &kI(void) { return rate_pid.kI(); }
     AP_Float &kD(void) { return rate_pid.kD(); }
     AP_Float &kFF(void) { return rate_pid.ff(); }
+    AP_Float &tau(void) { return gains.tau; }
 
     void convert_pid();
 
@@ -55,7 +56,7 @@ private:
     AP_Int16 _max_rate_neg;
     AP_Float _roll_ff;
     float _last_out;
-    AC_PID rate_pid{0.04, 0.15, 0, 0.345, 0.666, 3, 0, 12, 0.02, 150, 1};
+    AC_PID rate_pid{0.04, 0.15, 0, 0.345, 0.666, 3, 0, 12, 150, 1};
     float angle_err_deg;
 
     AP_PIDInfo _pid_info;

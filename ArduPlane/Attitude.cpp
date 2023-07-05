@@ -9,23 +9,24 @@ float Plane::calc_speed_scaler(void)
 {
     float aspeed, speed_scaler;
     if (ahrs.airspeed_estimate(aspeed)) {
-        if (aspeed > auto_state.highest_airspeed) {
+        if (aspeed > auto_state.highest_airspeed && hal.util->get_soft_armed()) {
             auto_state.highest_airspeed = aspeed;
         }
+        // ensure we have scaling over the full configured airspeed
+        const float airspeed_min = MAX(aparm.airspeed_min, MIN_AIRSPEED_MIN);
+        const float scale_min = MIN(0.5, g.scaling_speed / (2.0 * aparm.airspeed_max));
+        const float scale_max = MAX(2.0, g.scaling_speed / (0.7 * airspeed_min));
         if (aspeed > 0.0001f) {
             speed_scaler = g.scaling_speed / aspeed;
         } else {
-            speed_scaler = 2.0;
+            speed_scaler = scale_max;
         }
-        // ensure we have scaling over the full configured airspeed
-        float scale_min = MIN(0.5, (0.5 * aparm.airspeed_min) / g.scaling_speed);
-        float scale_max = MAX(2.0, (1.5 * aparm.airspeed_max) / g.scaling_speed);
         speed_scaler = constrain_float(speed_scaler, scale_min, scale_max);
 
 #if HAL_QUADPLANE_ENABLED
         if (quadplane.in_vtol_mode() && hal.util->get_soft_armed()) {
             // when in VTOL modes limit surface movement at low speed to prevent instability
-            float threshold = aparm.airspeed_min * 0.5;
+            float threshold = airspeed_min * 0.5;
             if (aspeed < threshold) {
                 float new_scaler = linear_interpolate(0.001, g.scaling_speed / threshold, aspeed, 0, threshold);
                 speed_scaler = MIN(speed_scaler, new_scaler);
@@ -65,7 +66,7 @@ bool Plane::stick_mixing_enabled(void)
         // never stick mix without valid RC
         return false;
     }
-#if AC_FENCE == ENABLED
+#if AP_FENCE_ENABLED
     const bool stickmixing = fence_stickmixing();
 #else
     const bool stickmixing = true;
@@ -237,6 +238,11 @@ void Plane::stabilize_stick_mixing_direct()
     aileron = channel_roll->stick_mixing(aileron);
     SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, aileron);
 
+    if ((control_mode == &mode_loiter) && (plane.g2.flight_options & FlightOptions::ENABLE_LOITER_ALT_CONTROL)) {
+        // loiter is using altitude control based on the pitch stick, don't use it again here
+        return;
+    }
+
     float elevator = SRV_Channels::get_output_scaled(SRV_Channel::k_elevator);
     elevator = channel_pitch->stick_mixing(elevator);
     SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator);
@@ -281,7 +287,12 @@ void Plane::stabilize_stick_mixing_fbw()
     }
     nav_roll_cd += roll_input * roll_limit_cd;
     nav_roll_cd = constrain_int32(nav_roll_cd, -roll_limit_cd, roll_limit_cd);
-    
+
+    if ((control_mode == &mode_loiter) && (plane.g2.flight_options & FlightOptions::ENABLE_LOITER_ALT_CONTROL)) {
+        // loiter is using altitude control based on the pitch stick, don't use it again here
+        return;
+    }
+
     float pitch_input = channel_pitch->norm_input();
     if (pitch_input > 0.5f) {
         pitch_input = (3*pitch_input - 1);
@@ -596,6 +607,7 @@ void Plane::calc_nav_yaw_coordinated(float speed_scaler)
     int16_t rudder_in = rudder_input();
 
     int16_t commanded_rudder;
+    bool using_rate_controller = false;
 
     // Received an external msg that guides yaw in the last 3 seconds?
     if (control_mode->is_guided_mode() &&
@@ -606,7 +618,10 @@ void Plane::calc_nav_yaw_coordinated(float speed_scaler)
         // user is doing an AUTOTUNE with yaw rate control
         const float rudd_expo = rudder_in_expo(true);
         const float yaw_rate = (rudd_expo/SERVO_MAX) * g.acro_yaw_rate;
-        commanded_rudder = yawController.get_rate_out(yaw_rate,  speed_scaler, false);
+        // add in the corrdinated turn yaw rate to make it easier to fly while tuning the yaw rate controller
+        const float coordination_yaw_rate = degrees(GRAVITY_MSS * tanf(radians(nav_roll_cd*0.01f))/MAX(aparm.airspeed_min,smoothed_airspeed));
+        commanded_rudder = yawController.get_rate_out(yaw_rate+coordination_yaw_rate,  speed_scaler, false);
+        using_rate_controller = true;
     } else {
         if (control_mode == &mode_stabilize && rudder_in != 0) {
             disable_integrator = true;
@@ -620,6 +635,13 @@ void Plane::calc_nav_yaw_coordinated(float speed_scaler)
     }
 
     steering_control.rudder = constrain_int16(commanded_rudder, -4500, 4500);
+
+    if (!using_rate_controller) {
+        /*
+          When not running the yaw rate controller, we need to reset the rate
+        */
+        yawController.reset_rate_PID();
+    }
 }
 
 /*
@@ -738,8 +760,7 @@ void Plane::calc_nav_roll()
 
         float bank_limit = degrees(atanf(guided_state.target_heading_accel_limit/GRAVITY_MSS)) * 1e2f;
 
-        g2.guidedHeading.update_error(error); // push error into AC_PID , possible improvement is to use update_all instead.?
-        g2.guidedHeading.set_dt(delta);
+        g2.guidedHeading.update_error(error, delta); // push error into AC_PID , possible improvement is to use update_all instead.?
 
         float i = g2.guidedHeading.get_i(); // get integrator TODO
         if (((is_negative(error) && !guided_state.target_heading_limit_low) || (is_positive(error) && !guided_state.target_heading_limit_high))) {

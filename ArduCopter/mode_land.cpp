@@ -46,9 +46,15 @@ bool ModeLand::init(bool ignore_checks)
     copter.ap.prec_land_active = false; // this will be set true if prec land is later active
     auto_yaw.set_mode(AUTO_YAW_HOLD); // initialise yaw
 
-    #if AC_FENCE == ENABLED
-        copter.fence.auto_disable_fence_for_landing(); // disable the fence on landing
-    #endif
+#if AP_FENCE_ENABLED
+    // disable the fence on landing
+    copter.fence.auto_disable_fence_for_landing();
+#endif
+
+#if PRECISION_LANDING == ENABLED
+    // initialise precland state machine
+    copter.precland_statemachine.init();
+#endif
 
     #if !(RANGEFINDER_ENABLED == ENABLED)
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Rangefinder not enabled!"); // Set in the ardupilot code directly, NOT in parameters

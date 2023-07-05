@@ -55,8 +55,8 @@ void AP_MotorsTailsitter::init(motor_frame_class frame_class, motor_frame_type f
 
 
 /// Constructor
-AP_MotorsTailsitter::AP_MotorsTailsitter(uint16_t loop_rate, uint16_t speed_hz) :
-    AP_MotorsMulticopter(loop_rate, speed_hz)
+AP_MotorsTailsitter::AP_MotorsTailsitter(uint16_t speed_hz) :
+    AP_MotorsMulticopter(speed_hz)
 {
     set_update_rate(speed_hz);
 }
@@ -113,7 +113,7 @@ void AP_MotorsTailsitter::output_to_motors()
 
 // get_motor_mask - returns a bitmask of which outputs are being used for motors (1 means being used)
 //  this can be used to ensure other pwm outputs (i.e. for servos) do not conflict
-uint16_t AP_MotorsTailsitter::get_motor_mask()
+uint32_t AP_MotorsTailsitter::get_motor_mask()
 {
     uint32_t motor_mask = 0;
     uint8_t chan;

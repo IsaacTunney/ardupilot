@@ -284,7 +284,7 @@ void AP_Landing::type_slope_setup_landing_glide_slope(const Location &prev_WP_lo
     }
 
     // time before landing that we will flare
-    float flare_time = aim_height / tecs_Controller->get_land_sinkrate();
+    float flare_time = aim_height / MAX(tecs_Controller->get_land_sinkrate(), 0.1);
 
     // distance to flare is based on ground speed, adjusted as we
     // get closer. This takes into account the wind
@@ -409,7 +409,7 @@ void AP_Landing::type_slope_log(void) const
 // @Field: slopeInit: Initial slope to landing point
 // @Field: altO: Rangefinder correction
 // @Field: fh: Height for flare timing.
-    AP::logger().Write("LAND", "TimeUS,stage,f1,f2,slope,slopeInit,altO,fh", "QBBBffff",
+    AP::logger().WriteStreaming("LAND", "TimeUS,stage,f1,f2,slope,slopeInit,altO,fh", "QBBBffff",
                                             AP_HAL::micros64(),
                                             type_slope_stage,
                                             flags,

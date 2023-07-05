@@ -96,11 +96,13 @@ public:
         VRX_BOARD_CORE10   = 36,
         VRX_BOARD_BRAIN54  = 38,
         PX4_BOARD_FMUV6    = 39,
+        FMUV6_BOARD_HOLYBRO_6X = 40,
+        FMUV6_BOARD_CUAV_6X = 41,
         PX4_BOARD_OLDDRIVERS = 100,
     };
 
     // set default value for BRD_SAFETY_MASK
-    void set_default_safety_ignore_mask(uint16_t mask);
+    void set_default_safety_ignore_mask(uint32_t mask);
 
     static enum px4_board_type get_board_type(void) {
 #if AP_FEATURE_BOARD_DETECT
@@ -140,11 +142,7 @@ public:
 
     // return the value of BRD_SAFETY_MASK
     uint16_t get_safety_mask(void) const {
-#if AP_FEATURE_BOARD_DETECT || defined(AP_FEATURE_BRD_PWM_COUNT_PARAM)
-        return uint16_t(state.ignore_safety_channels.get());
-#else
-        return 0;
-#endif
+        return uint32_t(state.ignore_safety_channels.get());
     }
 
 #if HAL_HAVE_BOARD_VOLTAGE
@@ -227,7 +225,7 @@ public:
 private:
     static AP_BoardConfig *_singleton;
     
-    AP_Int16 vehicleSerialNumber;
+    AP_Int32 vehicleSerialNumber;
 
     struct {
         AP_Int8 safety_enable;
@@ -249,6 +247,7 @@ private:
     bool spi_check_register_inv2(const char *devname, uint8_t regnum, uint8_t value, uint8_t read_flag = 0x80);
     void validate_board_type(void);
     void board_autodetect(void);
+    void detect_fmuv6_variant(void);
     bool check_ms5611(const char* devname);
 
 #endif // AP_FEATURE_BOARD_DETECT

@@ -48,6 +48,14 @@ mavlink_system_t mavlink_system = {7,1};
 // routing table
 MAVLink_routing GCS_MAVLINK::routing;
 
+GCS_MAVLINK *GCS_MAVLINK::find_by_mavtype_and_compid(uint8_t mav_type, uint8_t compid, uint8_t &sysid) {
+    mavlink_channel_t channel;
+    if (!routing.find_by_mavtype_and_compid(mav_type, compid, sysid, channel)) {
+        return nullptr;
+    }
+    return gcs().chan(channel);
+}
+
 // set a channel as private. Private channels get sent heartbeats, but
 // don't get broadcast packets or forwarded packets
 void GCS_MAVLINK::set_channel_private(mavlink_channel_t _chan)
@@ -127,7 +135,7 @@ void comm_send_lock(mavlink_channel_t chan_m, uint16_t size)
     chan_locks[chan].take_blocking();
     if (mavlink_comm_port[chan]->txspace() < size) {
         chan_discard[chan] = true;
-        gcs_out_of_space_to_send_count(chan_m);
+        gcs_out_of_space_to_send(chan_m);
     }
 }
 

@@ -50,19 +50,18 @@ const AP_Param::GroupInfo AC_PID_2D::var_info[] = {
 };
 
 // Constructor
-AC_PID_2D::AC_PID_2D(float initial_kP, float initial_kI, float initial_kD, float initial_kFF, float initial_imax, float initial_filt_E_hz, float initial_filt_D_hz, float dt) :
-    _dt(dt)
+AC_PID_2D::AC_PID_2D(float initial_kP, float initial_kI, float initial_kD, float initial_kFF, float initial_imax, float initial_filt_E_hz, float initial_filt_D_hz)
 {
     // load parameter values from eeprom
     AP_Param::setup_object_defaults(this, var_info);
 
-    _kp = initial_kP;
-    _ki = initial_kI;
-    _kd = initial_kD;
-    _kff = initial_kFF;
-    _kimax = fabsf(initial_imax);
-    filt_E_hz(initial_filt_E_hz);
-    filt_D_hz(initial_filt_D_hz);
+    _kp.set_and_default(initial_kP);
+    _ki.set_and_default(initial_kI);
+    _kd.set_and_default(initial_kD);
+    _kff.set_and_default(initial_kFF);
+    _kimax.set_and_default(initial_imax);
+    _filt_E_hz.set_and_default(initial_filt_E_hz);
+    _filt_D_hz.set_and_default(initial_filt_D_hz);
 
     // reset input filter to first value received
     _reset_filter = true;
@@ -72,7 +71,7 @@ AC_PID_2D::AC_PID_2D(float initial_kP, float initial_kI, float initial_kD, float
 //  target and error are filtered
 //  the derivative is then calculated and filtered
 //  the integral is then updated if it does not increase in the direction of the limit vector
-Vector2f AC_PID_2D::update_all(const Vector2f &target, const Vector2f &measurement, const Vector2f &limit)
+Vector2f AC_PID_2D::update_all(const Vector2f &target, const Vector2f &measurement, float dt, const Vector2f &limit)
 {
     // don't process inf or NaN
     if (target.is_nan() || target.is_inf() ||
@@ -89,17 +88,17 @@ Vector2f AC_PID_2D::update_all(const Vector2f &target, const Vector2f &measureme
         _derivative.zero();
     } else {
         Vector2f error_last{_error};
-        _error += ((_target - measurement) - _error) * get_filt_E_alpha();
+        _error += ((_target - measurement) - _error) * get_filt_E_alpha(dt);
 
         // calculate and filter derivative
-        if (_dt > 0.0f) {
-            const Vector2f derivative{(_error - error_last) / _dt};
-            _derivative += (derivative - _derivative) * get_filt_D_alpha();
+        if (is_positive(dt)) {
+            const Vector2f derivative{(_error - error_last) / dt};
+            _derivative += (derivative - _derivative) * get_filt_D_alpha(dt);
         }
     }
 
     // update I term
-    update_i(limit);
+    update_i(dt, limit);
 
     _pid_info_x.target = _target.x;
     _pid_info_x.actual = measurement.x;
@@ -120,19 +119,19 @@ Vector2f AC_PID_2D::update_all(const Vector2f &target, const Vector2f &measureme
     return _error * _kp + _integrator + _derivative * _kd + _target * _kff;
 }
 
-Vector2f AC_PID_2D::update_all(const Vector3f &target, const Vector3f &measurement, const Vector3f &limit)
+Vector2f AC_PID_2D::update_all(const Vector3f &target, const Vector3f &measurement, float dt, const Vector3f &limit)
 {
-    return update_all(Vector2f{target.x, target.y}, Vector2f{measurement.x, measurement.y}, Vector2f{limit.x, limit.y});
+    return update_all(Vector2f{target.x, target.y}, Vector2f{measurement.x, measurement.y}, dt, Vector2f{limit.x, limit.y});
 }
 
 //  update_i - update the integral
 //  If the limit is set the integral is only allowed to reduce in the direction of the limit
-void AC_PID_2D::update_i(const Vector2f &limit)
+void AC_PID_2D::update_i(float dt, const Vector2f &limit)
 {
     _pid_info_x.limit = false;
     _pid_info_y.limit = false;
 
-    Vector2f delta_integrator = (_error * _ki) * _dt;
+    Vector2f delta_integrator = (_error * _ki) * dt;
     float integrator_length = _integrator.length();
     _integrator += delta_integrator;
     // do not let integrator increase in length if delta_integrator is in the direction of limit
@@ -166,6 +165,13 @@ Vector2f AC_PID_2D::get_ff()
     return _target * _kff;
 }
 
+void AC_PID_2D::reset_I()
+{
+    _integrator.zero(); 
+    _pid_info_x.I = 0.0;
+    _pid_info_y.I = 0.0;
+}
+
 // save_gains - save gains to eeprom
 void AC_PID_2D::save_gains()
 {
@@ -179,15 +185,15 @@ void AC_PID_2D::save_gains()
 }
 
 // get the target filter alpha
-float AC_PID_2D::get_filt_E_alpha() const
+float AC_PID_2D::get_filt_E_alpha(float dt) const
 {
-    return calc_lowpass_alpha_dt(_dt, _filt_E_hz);
+    return calc_lowpass_alpha_dt(dt, _filt_E_hz);
 }
 
 // get the derivative filter alpha
-float AC_PID_2D::get_filt_D_alpha() const
+float AC_PID_2D::get_filt_D_alpha(float dt) const
 {
-    return calc_lowpass_alpha_dt(_dt, _filt_D_hz);
+    return calc_lowpass_alpha_dt(dt, _filt_D_hz);
 }
 
 void AC_PID_2D::set_integrator(const Vector2f& target, const Vector2f& measurement, const Vector2f& i)

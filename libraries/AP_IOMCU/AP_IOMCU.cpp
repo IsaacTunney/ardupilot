@@ -18,6 +18,7 @@
 #include <AP_RCProtocol/AP_RCProtocol.h>
 #include <AP_InternalError/AP_InternalError.h>
 #include <AP_Logger/AP_Logger.h>
+#include <AP_Arming/AP_Arming.h>
 #include <ch.h>
 
 extern const AP_HAL::HAL &hal;
@@ -242,6 +243,7 @@ void AP_IOMCU::thread_main(void)
             // read status at 20Hz
             read_status();
             last_status_read_ms = AP_HAL::millis();
+            write_log();
         }
 
         if (now - last_servo_read_ms > 50) {
@@ -350,7 +352,10 @@ void AP_IOMCU::read_status()
             force_safety_off();
         }
     }
+}
 
+void AP_IOMCU::write_log()
+{
     uint32_t now = AP_HAL::millis();
     if (now - last_log_ms >= 1000U) {
         last_log_ms = now;
@@ -358,14 +363,16 @@ void AP_IOMCU::read_status()
 // @LoggerMessage: IOMC
 // @Description: IOMCU diagnostic information
 // @Field: TimeUS: Time since system startup
+// @Field: RSErr: Status Read error count (zeroed on successful read)
 // @Field: Mem: Free memory
 // @Field: TS: IOMCU uptime
 // @Field: NPkt: Number of packets received by IOMCU
 // @Field: Nerr: Protocol failures on MCU side
 // @Field: Nerr2: Reported number of failures on IOMCU side
 // @Field: NDel: Number of delayed packets received by MCU
-            AP::logger().WriteStreaming("IOMC", "TimeUS,Mem,TS,NPkt,Nerr,Nerr2,NDel", "QHIIIII",
+            AP::logger().WriteStreaming("IOMC", "TimeUS,RSErr,Mem,TS,NPkt,Nerr,Nerr2,NDel", "QHHIIIII",
                                AP_HAL::micros64(),
+                               read_status_errors,
                                reg_status.freemem,
                                reg_status.timestamp_ms,
                                reg_status.total_pkts,
@@ -779,7 +786,7 @@ void AP_IOMCU::update_safety_options(void)
     if (!(options & AP_BoardConfig::BOARD_SAFETY_OPTION_BUTTON_ACTIVE_SAFETY_ON)) {
         desired_options |= P_SETUP_ARMING_SAFETY_DISABLE_ON;
     }
-    if (!(options & AP_BoardConfig::BOARD_SAFETY_OPTION_BUTTON_ACTIVE_ARMED) && hal.util->get_soft_armed()) {
+    if (!(options & AP_BoardConfig::BOARD_SAFETY_OPTION_BUTTON_ACTIVE_ARMED) && AP::arming().is_armed()) {
         desired_options |= (P_SETUP_ARMING_SAFETY_DISABLE_ON | P_SETUP_ARMING_SAFETY_DISABLE_OFF);
     }
     if (last_safety_options != desired_options) {
@@ -814,7 +821,7 @@ bool AP_IOMCU::check_crc(void)
 
     fw = AP_ROMFS::find_decompress(fw_name, fw_size);
     if (!fw) {
-        hal.console->printf("failed to find %s\n", fw_name);
+        DEV_PRINTF("failed to find %s\n", fw_name);
         return false;
     }
     uint32_t crc = crc32_small(0, fw, fw_size);
@@ -833,13 +840,13 @@ bool AP_IOMCU::check_crc(void)
         }
     }
     if (io_crc == crc) {
-        hal.console->printf("IOMCU: CRC ok\n");
+        DEV_PRINTF("IOMCU: CRC ok\n");
         crc_is_ok = true;
         AP_ROMFS::free(fw);
         fw = nullptr;
         return true;
     } else {
-        hal.console->printf("IOMCU: CRC mismatch expected: 0x%X got: 0x%X\n", (unsigned)crc, (unsigned)io_crc);
+        DEV_PRINTF("IOMCU: CRC mismatch expected: 0x%X got: 0x%X\n", (unsigned)crc, (unsigned)io_crc);
     }
 
     const uint16_t magic = REBOOT_BL_MAGIC;
@@ -909,7 +916,7 @@ void AP_IOMCU::shutdown(void)
  */
 void AP_IOMCU::bind_dsm(uint8_t mode)
 {
-    if (!is_chibios_backend || hal.util->get_soft_armed()) {
+    if (!is_chibios_backend || AP::arming().is_armed()) {
         // only with ChibiOS IO firmware, and disarmed
         return;
     }
@@ -1011,11 +1018,13 @@ void AP_IOMCU::check_iomcu_reset(void)
     if (last_iocmu_timestamp_ms == 0) {
         // initialisation
         last_iocmu_timestamp_ms = reg_status.timestamp_ms;
-        hal.console->printf("IOMCU startup\n");
+        DEV_PRINTF("IOMCU startup\n");
         return;
     }
     uint32_t dt_ms = reg_status.timestamp_ms - last_iocmu_timestamp_ms;
-    uint32_t ts1 = last_iocmu_timestamp_ms;
+#if IOMCU_DEBUG_ENABLE
+    const uint32_t ts1 = last_iocmu_timestamp_ms;
+#endif
     // when we are in an expected delay allow for a larger time
     // delta. This copes with flash erase, such as bootloader update
     const uint32_t max_delay = hal.scheduler->in_expected_delay()?5000:500;
@@ -1028,19 +1037,23 @@ void AP_IOMCU::check_iomcu_reset(void)
     }
     detected_io_reset = true;
     INTERNAL_ERROR(AP_InternalError::error_t::iomcu_reset);
-    hal.console->printf("IOMCU reset t=%u %u %u dt=%u\n",
-                        unsigned(AP_HAL::millis()), unsigned(ts1), unsigned(reg_status.timestamp_ms), unsigned(dt_ms));
+    debug("IOMCU reset t=%u %u %u dt=%u\n",
+          unsigned(AP_HAL::millis()), unsigned(ts1), unsigned(reg_status.timestamp_ms), unsigned(dt_ms));
 
-    if (last_safety_off && !reg_status.flag_safety_off && hal.util->get_soft_armed()) {
+    bool have_forced_off = false;
+    if (last_safety_off && !reg_status.flag_safety_off && AP::arming().is_armed()) {
         AP_BoardConfig *boardconfig = AP_BoardConfig::get_singleton();
         uint16_t options = boardconfig?boardconfig->get_safety_button_options():0;
         if (safety_forced_off || (options & AP_BoardConfig::BOARD_SAFETY_OPTION_BUTTON_ACTIVE_ARMED) == 0) {
             // IOMCU has reset while armed with safety off - force it off
             // again so we can keep flying
+            have_forced_off = true;
             force_safety_off();
         }
     }
-    last_safety_off = reg_status.flag_safety_off;
+    if (!have_forced_off) {
+        last_safety_off = reg_status.flag_safety_off;
+    }
 
     // we need to ensure the mixer data and the rates are sent over to
     // the IOMCU
@@ -1064,22 +1077,25 @@ void AP_IOMCU::check_iomcu_reset(void)
     last_rc_protocols = 0;
 }
 
-// Check if pin number is valid for GPIO
+// Check if pin number is valid and configured for GPIO
 bool AP_IOMCU::valid_GPIO_pin(uint8_t pin) const
 {
-    return convert_pin_number(pin);
+    // sanity check pin number
+    if (!convert_pin_number(pin)) {
+        return false;
+    }
+
+    // check pin is enabled as GPIO
+    return ((GPIO.channel_mask & (1U << pin)) != 0);
 }
 
 // convert external pin numbers 101 to 108 to internal 0 to 7
 bool AP_IOMCU::convert_pin_number(uint8_t& pin) const
 {
-    if (pin < 101) {
+    if (pin < 101 || pin > 108) {
         return false;
     }
     pin -= 101;
-    if (pin > 7) {
-        return false;
-    }
     return true;
 }
 

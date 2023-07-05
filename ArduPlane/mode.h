@@ -271,6 +271,8 @@ public:
     bool does_auto_navigation() const override { return true; }
 
     bool does_auto_throttle() const override { return true; }
+    
+    bool allows_terrain_disable() const override { return true; }
 
 protected:
 
@@ -339,7 +341,7 @@ protected:
 private:
 
     // Switch to QRTL if enabled and within radius
-    bool switch_QRTL(bool check_loiter_target = true);
+    bool switch_QRTL();
 };
 
 class ModeStabilize : public Mode
@@ -597,6 +599,13 @@ public:
 protected:
 
     bool _enter() override;
+
+private:
+
+    enum class SubMode {
+        climb,
+        RTL,
+    } submode;
 };
 
 class ModeQAcro : public Mode

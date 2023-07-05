@@ -57,6 +57,21 @@ public:
 
     void take_picture();
 
+    // start/stop recording video
+    // start_recording should be true to start recording, false to stop recording
+    bool record_video(bool start_recording);
+
+    // zoom in, out or hold
+    // zoom out = -1, hold = 0, zoom in = 1
+    bool set_zoom_step(int8_t zoom_step);
+
+    // focus in, out or hold
+    // focus in = -1, focus hold = 0, focus out = 1
+    bool set_manual_focus_step(int8_t focus_step);
+
+    // auto focus
+    bool set_auto_focus();
+
     // Update - to be called periodically @at least 50Hz
     void update();
 
@@ -77,6 +92,7 @@ public:
         servo   = 0,
         relay   = 1,
         gopro   = 2,
+        mount   = 3,
     };
 
     AP_Camera::CamTrigType get_trigger_type(void);
@@ -108,6 +124,7 @@ private:
     AP_Int16        _min_interval;      // Minimum time between shots required by camera
     AP_Int16        _max_roll;          // Maximum acceptable roll angle when trigging camera
     uint32_t        _last_photo_time;   // last time a photo was taken
+    bool            _trigger_pending;   // true when we have delayed take_picture
     struct Location _last_location;
     uint16_t        _image_index;       // number of pictures taken since boot
 

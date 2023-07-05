@@ -203,7 +203,7 @@ void RC_Channel_Plane::init_aux_function(const RC_Channel::aux_func_t ch_option,
     }
 }
 
-// do_aux_function - implement the function invoked by auxillary switches
+// do_aux_function - implement the function invoked by auxiliary switches
 bool RC_Channel_Plane::do_aux_function(const aux_func_t ch_option, const AuxSwitchPos ch_flag)
 {
     switch(ch_option) {
@@ -309,6 +309,7 @@ bool RC_Channel_Plane::do_aux_function(const aux_func_t ch_option, const AuxSwit
         switch (ch_flag) {
         case AuxSwitchPos::HIGH:
             plane.quadplane.air_mode = AirMode::ON;
+            plane.quadplane.throttle_wait = false;
             break;
         case AuxSwitchPos::MIDDLE:
             break;
@@ -359,6 +360,7 @@ bool RC_Channel_Plane::do_aux_function(const aux_func_t ch_option, const AuxSwit
         RC_Channel::do_aux_function_armdisarm(ch_flag);
         if (plane.arming.is_armed()) {
             plane.quadplane.air_mode = AirMode::ON;
+            plane.quadplane.throttle_wait = false;
         }
         break;
 

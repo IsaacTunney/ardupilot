@@ -48,7 +48,7 @@ public:
     bool enabled() const { return _enabled; }
 
     // set which target to follow
-    void set_target_sysid(uint8_t sysid) { _sysid = sysid; }
+    void set_target_sysid(uint8_t sysid) { _sysid.set(sysid); }
 
     // Get mavlink id of target to follow
     AP_Int8 get_target_sysid() { return _sysid; }

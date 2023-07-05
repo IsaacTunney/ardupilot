@@ -1,10 +1,9 @@
 #pragma once
 
 #include <AP_Common/AP_Common.h>
-#include <AP_Math/AP_Math.h>        // ArduPilot Mega Vector/Matrix math Library
-#include <AP_Notify/AP_Notify.h>      // Notify library
-#include <SRV_Channel/SRV_Channel.h>
+#include <AP_Math/AP_Math.h>
 #include <Filter/Filter.h>         // filter library
+#include <GCS_MAVLink/GCS_MAVLink.h>
 
 // offsets for motors in motor_out and _motor_filtered arrays
 #define AP_MOTORS_MOT_1 0U
@@ -104,12 +103,13 @@ public:
     void get_frame_and_type_string(char *buffer, uint8_t buflen) const;
 
     // Constructor
-    AP_Motors(uint16_t loop_rate, uint16_t speed_hz = AP_MOTORS_SPEED_DEFAULT);
+    AP_Motors(uint16_t speed_hz = AP_MOTORS_SPEED_DEFAULT);
 
     // singleton support
     static AP_Motors    *get_singleton(void) { return _singleton; }
 
     // check initialisation succeeded
+    virtual bool        arming_checks(size_t buflen, char *buffer) const;
     bool                initialised_ok() const { return _initialised_ok; }
     void                set_initialised_ok(bool val) { _initialised_ok = val; }
 
@@ -122,6 +122,10 @@ public:
 
     // get motor interlock status.  true means motors run, false motors don't run
     bool                get_interlock() const { return _interlock; }
+
+    // get/set spoolup block
+    bool                get_spoolup_block() const { return _spoolup_block; }
+    void                set_spoolup_block(bool set) { _spoolup_block = set; }
 
     // set_roll, set_pitch, set_yaw, set_throttle
     void                set_roll(float roll_in) { _roll_in = roll_in; };        // range -1 ~ +1
@@ -185,6 +189,12 @@ public:
     // set_density_ratio - sets air density as a proportion of sea level density
     void                set_air_density_ratio(float ratio) { _air_density_ratio = ratio; }
 
+    // set_dt / get_dt - dt is the time since the last time the motor mixers were updated
+    //   _dt should be set based on the time of the last IMU read used by these controllers
+    //   the motor mixers should run on each loop to ensure normal operation
+    void set_dt(float dt) { _dt = dt; }
+    float get_dt() const { return _dt; }
+
     // structure for holding motor limit flags
     struct AP_Motors_limit {
         uint8_t roll            : 1; // we have reached roll or pitch limit
@@ -223,13 +233,10 @@ public:
 
     // get_motor_mask - returns a bitmask of which outputs are being used for motors (1 means being used)
     //  this can be used to ensure other pwm outputs (i.e. for servos) do not conflict
-    virtual uint16_t    get_motor_mask() = 0;
+    virtual uint32_t    get_motor_mask() = 0;
 
     // pilot input in the -1 ~ +1 range for roll, pitch and yaw. 0~1 range for throttle
     void                set_radio_passthrough(float roll_input, float pitch_input, float throttle_input, float yaw_input);
-
-    // set loop rate. Used to support loop rate as a parameter
-    void                set_loop_rate(uint16_t loop_rate) { _loop_rate = loop_rate; }
 
     // return the roll factor of any motor, this is used for tilt rotors and tail sitters
     // using copter motors for forward flight
@@ -290,7 +297,7 @@ protected:
     virtual void save_params_on_disarm() {}
 
     // internal variables
-    uint16_t            _loop_rate;                 // rate in Hz at which output() function is called (normally 400hz)
+    float               _dt;                        // time difference (in seconds) since the last loop time
     uint16_t            _speed_hz;                  // speed in hz to send updates to motors
     float               _roll_in;                   // desired roll control from attitude controllers, -1 ~ +1
     float               _roll_in_ff;                // desired roll feed forward control from attitude controllers, -1 ~ +1
@@ -315,10 +322,10 @@ protected:
     float               _air_density_ratio;     // air density / sea level density - decreases in altitude
 
     // mask of what channels need fast output
-    uint16_t            _motor_fast_mask;
+    uint32_t            _motor_fast_mask;
 
     // mask of what channels need to use SERVOn_MIN/MAX for output mapping
-    uint16_t            _motor_pwm_range_mask;
+    uint32_t            _motor_pwm_range_mask;
     
     // pass through variables
     float _roll_radio_passthrough;     // roll input from pilot in -1 ~ +1 range.  used for setup and providing servo feedback while landed
@@ -366,6 +373,7 @@ private:
     bool _armed;             // 0 if disarmed, 1 if armed
     bool _interlock;         // 1 if the motor interlock is enabled (i.e. motors run), 0 if disabled (motors don't run)
     bool _initialised_ok;    // 1 if initialisation was successful
+    bool _spoolup_block;     // true if spoolup is blocked
 
     static AP_Motors *_singleton;
 };

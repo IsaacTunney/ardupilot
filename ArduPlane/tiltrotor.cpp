@@ -74,7 +74,7 @@ const AP_Param::GroupInfo Tiltrotor::var_info[] = {
 
     // @Param: WING_FLAP
     // @DisplayName: Tiltrotor tilt angle that will be used as flap
-    // @Description: For use on tilt wings, the wing will tilt up to this angle for flap, transistion will be complete when the wing reaches this angle from the forward fight position, 0 disables
+    // @Description: For use on tilt wings, the wing will tilt up to this angle for flap, transition will be complete when the wing reaches this angle from the forward fight position, 0 disables
     // @Units: deg
     // @Increment: 1
     // @Range: 0 15
@@ -219,7 +219,10 @@ void Tiltrotor::continuous_update(void)
     if (!quadplane.in_vtol_mode() && (!hal.util->get_soft_armed() || !quadplane.assisted_flight)) {
         // we are in pure fixed wing mode. Move the tiltable motors all the way forward and run them as
         // a forward motor
-        slew(get_forward_flight_tilt());
+
+        // option set then if disarmed move to VTOL position to prevent ground strikes, allow tilt forward in manual mode for testing
+        const bool disarmed_tilt_up = !hal.util->get_soft_armed() && (plane.control_mode != &plane.mode_manual) && quadplane.option_is_set(QuadPlane::OPTION::DISARMED_TILT_UP);
+        slew(disarmed_tilt_up ? 0.0 : get_forward_flight_tilt());
 
         max_change = tilt_max_change(false);
 
@@ -508,7 +511,7 @@ void Tiltrotor::vectoring(void)
     // Wait TILT_DELAY_MS after disarming to allow props to spin down first.
     constexpr uint32_t TILT_DELAY_MS = 3000;
     uint32_t now = AP_HAL::millis();
-    if (!hal.util->get_soft_armed() && (plane.quadplane.options & QuadPlane::OPTION_DISARMED_TILT)) {
+    if (!hal.util->get_soft_armed() && plane.quadplane.option_is_set(QuadPlane::OPTION::DISARMED_TILT)) {
         // this test is subject to wrapping at ~49 days, but the consequences are insignificant
         if ((now - hal.util->get_last_armed_change()) > TILT_DELAY_MS) {
             if (quadplane.in_vtol_mode()) {

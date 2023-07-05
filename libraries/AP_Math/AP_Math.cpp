@@ -400,11 +400,18 @@ Vector3F get_vel_correction_for_sensor_offset(const Vector3F &sensor_offset_bf, 
  */
 float calc_lowpass_alpha_dt(float dt, float cutoff_freq)
 {
-    if (dt <= 0.0f || cutoff_freq <= 0.0f) {
+    if (is_negative(dt) || is_negative(cutoff_freq)) {
+        INTERNAL_ERROR(AP_InternalError::error_t::invalid_arg_or_result);
         return 1.0;
     }
-    float rc = 1.0f/(M_2PI*cutoff_freq);
-    return constrain_float(dt/(dt+rc), 0.0f, 1.0f);
+    if (is_zero(cutoff_freq)) {
+        return 1.0;
+    }
+    if (is_zero(dt)) {
+        return 0.0;
+    }
+    float rc = 1.0f / (M_2PI * cutoff_freq);
+    return dt / (dt + rc);
 }
 
 #ifndef AP_MATH_FILL_NANF_USE_MEMCPY
@@ -486,4 +493,37 @@ float fixedwing_turn_rate(float bank_angle_deg, float airspeed)
 float degF_to_Kelvin(float temp_f)
 {
     return (temp_f + 459.67) * 0.55556;
+}
+
+/*
+  conversion functions to prevent undefined behaviour
+ */
+int16_t float_to_int16(const float v)
+{
+    return int16_t(constrain_float(v, INT16_MIN, INT16_MAX));
+}
+
+int32_t float_to_int32(const float v)
+{
+    return int32_t(constrain_float(v, INT32_MIN, INT32_MAX));
+}
+
+uint16_t float_to_uint16(const float v)
+{
+    return uint16_t(constrain_float(v, 0, UINT16_MAX));
+}
+
+uint32_t float_to_uint32(const float v)
+{
+    return uint32_t(constrain_float(v, 0, UINT32_MAX));
+}
+
+uint32_t double_to_uint32(const double v)
+{
+    return uint32_t(constrain_double(v, 0, UINT32_MAX));
+}
+
+int32_t double_to_int32(const double v)
+{
+    return int32_t(constrain_double(v, INT32_MIN, UINT32_MAX));
 }

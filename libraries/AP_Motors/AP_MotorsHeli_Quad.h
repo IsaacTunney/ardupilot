@@ -19,9 +19,8 @@
 class AP_MotorsHeli_Quad : public AP_MotorsHeli {
 public:
     // constructor
-    AP_MotorsHeli_Quad(uint16_t loop_rate,
-                       uint16_t speed_hz = AP_MOTORS_HELI_SPEED_DEFAULT) :
-        AP_MotorsHeli(loop_rate, speed_hz)
+    AP_MotorsHeli_Quad(uint16_t speed_hz = AP_MOTORS_HELI_SPEED_DEFAULT) :
+        AP_MotorsHeli(speed_hz)
     {
         AP_Param::setup_object_defaults(this, var_info);
     };
@@ -57,7 +56,7 @@ public:
     void calculate_armed_scalars() override;
 
     // get_motor_mask - returns a bitmask of which outputs are being used for motors or servos (1 means being used)
-    uint16_t get_motor_mask() override;
+    uint32_t get_motor_mask() override;
 
     // has_flybar - returns true if we have a mechanical flybar
     bool has_flybar() const  override { return AP_MOTORS_HELI_NOFLYBAR; }
