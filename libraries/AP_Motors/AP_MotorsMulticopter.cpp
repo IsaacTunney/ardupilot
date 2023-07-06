@@ -440,10 +440,9 @@ int16_t AP_MotorsMulticopter::output_to_pwm(float actuator)
             pwm_output = get_pwm_output_min();
         }
     } else {
-        // in all other spool modes, covert to desired PWM
+        // in all other spool modes, convert to desired PWM
         pwm_output = get_pwm_output_min() + (get_pwm_output_max() - get_pwm_output_min()) * actuator;
     }
-
     return pwm_output;
 }
 
@@ -455,7 +454,7 @@ float AP_MotorsMulticopter::thrust_to_actuator(float thrust_in) const
 }
 
 // inverse of above, tested with AP_Motors/examples/expo_inverse_test
-// used to calculate equivelent motor throttle level to direct ouput, used in tailsitter transtions
+// used to calculate equivelent motor throttle level to direct ouput, used in tailsitter transitions
 float AP_MotorsMulticopter::actuator_to_thrust(float actuator) const
 {
     actuator = (actuator - _spin_min) /  (_spin_max - _spin_min);
@@ -562,38 +561,38 @@ void AP_MotorsMulticopter::output_logic()
         // Motors should be stationary.
         // Servos set to their trim values or in a test condition.
 
-        // set limits flags
-        limit.roll = true;
-        limit.pitch = true;
-        limit.yaw = true;
-        limit.throttle_lower = true;
-        limit.throttle_upper = true;
+            // set limits flags
+            limit.roll           = true;
+            limit.pitch          = true;
+            limit.yaw            = true;
+            limit.throttle_lower = true;
+            limit.throttle_upper = true;
 
-        // make sure the motors are spooling in the correct direction
-        if (_spool_desired != DesiredSpoolState::SHUT_DOWN && _disarm_safe_timer >= _safe_time.get()) {
-            _spool_state = SpoolState::GROUND_IDLE;
+            // make sure the motors are spooling in the correct direction
+            if (_spool_desired != DesiredSpoolState::SHUT_DOWN && _disarm_safe_timer >= _safe_time.get()) {
+                _spool_state = SpoolState::GROUND_IDLE;
+                break;
+            }
+
+            // set and increment ramp variables
+            _spin_up_ratio = 0.0f;
+            _throttle_thrust_max = 0.0f;
+
+            // initialise motor failure variables
+            _thrust_boost = false;
+            _thrust_boost_ratio = 0.0f;
             break;
-        }
 
-        // set and increment ramp variables
-        _spin_up_ratio = 0.0f;
-        _throttle_thrust_max = 0.0f;
+        case SpoolState::GROUND_IDLE: {
+            // Motors should be stationary or at ground idle.
+            // Servos should be moving to correct the current attitude.
 
-        // initialise motor failure variables
-        _thrust_boost = false;
-        _thrust_boost_ratio = 0.0f;
-        break;
-
-    case SpoolState::GROUND_IDLE: {
-        // Motors should be stationary or at ground idle.
-        // Servos should be moving to correct the current attitude.
-
-        // set limits flags
-        limit.roll = true;
-        limit.pitch = true;
-        limit.yaw = true;
-        limit.throttle_lower = true;
-        limit.throttle_upper = true;
+            // set limits flags
+            limit.roll           = true;
+            limit.pitch          = true;
+            limit.yaw            = true;
+            limit.throttle_lower = true;
+            limit.throttle_upper = true;
 
         // set and increment ramp variables
         switch (_spool_desired) {
@@ -618,75 +617,75 @@ void AP_MotorsMulticopter::output_logic()
             }
             break;
 
-        case DesiredSpoolState::GROUND_IDLE:
-            float spin_up_armed_ratio = 0.0f;
-            if (_spin_min > 0.0f) {
-                spin_up_armed_ratio = _spin_arm / _spin_min;
+            case DesiredSpoolState::GROUND_IDLE:
+                float spin_up_armed_ratio = 0.0f;
+                if (_spin_min > 0.0f) {
+                    spin_up_armed_ratio = _spin_arm / _spin_min;
+                }
+                _spin_up_ratio += constrain_float(spin_up_armed_ratio - _spin_up_ratio, -spool_step, spool_step);
+                break;
             }
-            _spin_up_ratio += constrain_float(spin_up_armed_ratio - _spin_up_ratio, -spool_step, spool_step);
+            _throttle_thrust_max = 0.0f;
+
+            // initialise motor failure variables
+            _thrust_boost = false;
+            _thrust_boost_ratio = 0.0f;
             break;
         }
-        _throttle_thrust_max = 0.0f;
+        case SpoolState::SPOOLING_UP:
+            // Maximum throttle should move from minimum to maximum.
+            // Servos should exhibit normal flight behavior.
 
-        // initialise motor failure variables
-        _thrust_boost = false;
-        _thrust_boost_ratio = 0.0f;
-        break;
-    }
-    case SpoolState::SPOOLING_UP:
-        // Maximum throttle should move from minimum to maximum.
-        // Servos should exhibit normal flight behavior.
+            // initialize limits flags
+            limit.roll = false;
+            limit.pitch = false;
+            limit.yaw = false;
+            limit.throttle_lower = false;
+            limit.throttle_upper = false;
 
-        // initialize limits flags
-        limit.roll = false;
-        limit.pitch = false;
-        limit.yaw = false;
-        limit.throttle_lower = false;
-        limit.throttle_upper = false;
-
-        // make sure the motors are spooling in the correct direction
-        if (_spool_desired != DesiredSpoolState::THROTTLE_UNLIMITED) {
-            _spool_state = SpoolState::SPOOLING_DOWN;
-            break;
-        }
+            // make sure the motors are spooling in the correct direction
+            if (_spool_desired != DesiredSpoolState::THROTTLE_UNLIMITED) {
+                _spool_state = SpoolState::SPOOLING_DOWN;
+                break;
+            }
 
         // set and increment ramp variables
         _spin_up_ratio = 1.0f;
         _throttle_thrust_max += spool_step;
 
-        // constrain ramp value and update mode
-        if (_throttle_thrust_max >= MIN(get_throttle(), get_current_limit_max_throttle())) {
-            _throttle_thrust_max = get_current_limit_max_throttle();
-            _spool_state = SpoolState::THROTTLE_UNLIMITED;
-        } else if (_throttle_thrust_max < 0.0f) {
-            _throttle_thrust_max = 0.0f;
-        }
+            // constrain ramp value and update mode
+            if (_throttle_thrust_max >= MIN(get_throttle(), get_current_limit_max_throttle())) {
+                _throttle_thrust_max = get_current_limit_max_throttle();
+                _spool_state = SpoolState::THROTTLE_UNLIMITED;
+            } else if (_throttle_thrust_max < 0.0f) {
+                _throttle_thrust_max = 0.0f;
+            }
 
         // initialise motor failure variables
         _thrust_boost = false;
         _thrust_boost_ratio = MAX(0.0, _thrust_boost_ratio - spool_step);
         break;
 
-    case SpoolState::THROTTLE_UNLIMITED:
-        // Throttle should exhibit normal flight behavior.
-        // Servos should exhibit normal flight behavior.
+        case SpoolState::THROTTLE_UNLIMITED:
+            // Throttle should exhibit normal flight behavior.
+            // Servos should exhibit normal flight behavior.
 
-        // initialize limits flags
-        limit.roll = false;
-        limit.pitch = false;
-        limit.yaw = false;
-        limit.throttle_lower = false;
-        limit.throttle_upper = false;
+            // initialize limits flags
+            limit.roll           = false;
+            limit.pitch          = false;
+            limit.yaw            = false;
+            limit.throttle_lower = false;
+            limit.throttle_upper = false;
 
-        // make sure the motors are spooling in the correct direction
-        if (_spool_desired != DesiredSpoolState::THROTTLE_UNLIMITED) {
-            _spool_state = SpoolState::SPOOLING_DOWN;
-            break;
-        }
+            // make sure the motors are spooling in the correct direction
+            if (_spool_desired != DesiredSpoolState::THROTTLE_UNLIMITED) {
+                _spool_state = SpoolState::SPOOLING_DOWN;
+                break;
+            }
 
-        // set and increment ramp variables
-        _spin_up_ratio = 1.0f;
-        _throttle_thrust_max = get_current_limit_max_throttle();
+            // set and increment ramp variables
+            _spin_up_ratio = 1.0f;
+            _throttle_thrust_max = get_current_limit_max_throttle();
 
         if (_thrust_boost && !_thrust_balanced) {
             _thrust_boost_ratio = MIN(1.0, _thrust_boost_ratio + spool_step);
@@ -695,36 +694,36 @@ void AP_MotorsMulticopter::output_logic()
         }
         break;
 
-    case SpoolState::SPOOLING_DOWN:
-        // Maximum throttle should move from maximum to minimum.
-        // Servos should exhibit normal flight behavior.
+        case SpoolState::SPOOLING_DOWN:
+            // Maximum throttle should move from maximum to minimum.
+            // Servos should exhibit normal flight behavior.
 
-        // initialize limits flags
-        limit.roll = false;
-        limit.pitch = false;
-        limit.yaw = false;
-        limit.throttle_lower = false;
-        limit.throttle_upper = false;
+            // initialize limits flags
+            limit.roll           = false;
+            limit.pitch          = false;
+            limit.yaw            = false;
+            limit.throttle_lower = false;
+            limit.throttle_upper = false;
 
-        // make sure the motors are spooling in the correct direction
-        if (_spool_desired == DesiredSpoolState::THROTTLE_UNLIMITED) {
-            _spool_state = SpoolState::SPOOLING_UP;
-            break;
-        }
+            // make sure the motors are spooling in the correct direction
+            if (_spool_desired == DesiredSpoolState::THROTTLE_UNLIMITED) {
+                _spool_state = SpoolState::SPOOLING_UP;
+                break;
+            }
 
         // set and increment ramp variables
         _spin_up_ratio = 1.0f;
         _throttle_thrust_max -= spool_step;
 
-        // constrain ramp value and update mode
-        if (_throttle_thrust_max <= 0.0f) {
-            _throttle_thrust_max = 0.0f;
-        }
-        if (_throttle_thrust_max >= get_current_limit_max_throttle()) {
-            _throttle_thrust_max = get_current_limit_max_throttle();
-        } else if (is_zero(_throttle_thrust_max)) {
-            _spool_state = SpoolState::GROUND_IDLE;
-        }
+            // constrain ramp value and update mode
+            if (_throttle_thrust_max <= 0.0f) {
+                _throttle_thrust_max = 0.0f;
+            }
+            if (_throttle_thrust_max >= get_current_limit_max_throttle()) {
+                _throttle_thrust_max = get_current_limit_max_throttle();
+            } else if (is_zero(_throttle_thrust_max)) {
+                _spool_state = SpoolState::GROUND_IDLE;
+            }
 
         _thrust_boost_ratio = MAX(0.0, _thrust_boost_ratio - spool_step);
         break;

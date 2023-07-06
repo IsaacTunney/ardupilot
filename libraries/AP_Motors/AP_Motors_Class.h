@@ -139,6 +139,7 @@ public:
     void                set_throttle_filter_cutoff(float filt_hz) { _throttle_filter.set_cutoff_frequency(filt_hz); }
     void                set_forward(float forward_in) { _forward_in = forward_in; }; // range -1 ~ +1
     void                set_lateral(float lateral_in) { _lateral_in = lateral_in; };     // range -1 ~ +1
+    void                set_reverse_thrust(bool shutdown_motors, bool activate_rvt, bool activate_rvt_ct, uint16_t rvt_pwm){ _shutdown_motors = shutdown_motors, _activate_rvt = activate_rvt;  _activate_rvt_ct = activate_rvt_ct; _rvt_pwm = rvt_pwm; };     // REVERSE THRUST ADDED (CUSTOM FUNCTION)
 
     // for 6DoF vehicles, sets the roll and pitch offset, this rotates the thrust vector in body frame
     virtual void        set_roll_pitch(float roll_deg, float pitch_deg) {};
@@ -312,6 +313,10 @@ protected:
     LowPassFilterFloat  _throttle_filter;           // throttle input filter
     DesiredSpoolState   _spool_desired;             // desired spool state
     SpoolState          _spool_state;               // current spool mode
+    bool                _shutdown_motors;           // Shutdown motors during drop - CUSTOM LANDING MODE
+    bool                _activate_rvt;              // Activated reverse thrust - CUSTOM LANDING MODE
+    bool                _activate_rvt_ct;           // Activated reverse thrust for countertorque feature - CUSTOM LANDING MDOE
+    uint16_t            _rvt_pwm;                   // PWM sent to motors during landing - CUSTOM LANDING MODE
 
     // air pressure compensation variables
     float               _air_density_ratio;     // air density / sea level density - decreases in altitude

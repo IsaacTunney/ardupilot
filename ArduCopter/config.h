@@ -599,6 +599,26 @@
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
+// DEFAULT VALUES OF PARAMETERS ADDED FOR LANDING TECH
+#ifndef LAND_RVT_PWM_DEFAULT
+ # define LAND_RVT_PWM_DEFAULT          1500  // default value for reverse thrust PWM
+#endif
+
+#ifndef LAND_SHUTDOWN_HEIGHT_DEFAULT
+ # define LAND_SHUTDOWN_HEIGHT_DEFAULT  30    // default value for landing shutdown height, in cm
+#endif
+
+#ifndef LAND_TYPE_DEFAULT
+ # define LAND_TYPE_DEFAULT  0    // default value for landing shutdown height, in cm
+#endif
+
+#ifndef LAND_USE_RNGFND_DEFAULT
+ # define LAND_USE_RNGFND_DEFAULT  1  // default value for using rangefinder during landing sequence
+#endif
+//////////////////////////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////////////////////////
 // Logging control
 //
 #ifndef LOGGING_ENABLED

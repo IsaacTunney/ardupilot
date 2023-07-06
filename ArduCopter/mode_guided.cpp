@@ -10,6 +10,10 @@ static Vector3p guided_pos_target_cm;       // position target (used by posvel c
 bool guided_pos_terrain_alt;                // true if guided_pos_target_cm.z is an alt above terrain
 static Vector3f guided_vel_target_cms;      // velocity target (used by pos_vel_accel controller and vel_accel controller)
 static Vector3f guided_accel_target_cmss;   // acceleration target (used by pos_vel_accel controller vel_accel controller and accel controller)
+// ADDED FUNCTION FOR LANDING ON VEHICLE
+static Vector2f guided_vel_target_ne_cms;      // velocity target in horizontal plane (north-east) (used by pos_vel_accel controller and vel_accel controller)
+static Vector2f guided_accel_target_ne_cmss;   // acceleration target in horizontal plane (north-east) (used by pos_vel_accel controller vel_accel controller and accel controller)
+//////////////////////////////
 static uint32_t update_time_ms;             // system time of last target update to pos_vel_accel, vel_accel or accel controller
 
 struct {
@@ -32,7 +36,7 @@ struct Guided_Limit {
     Vector3f start_pos; // start position as a distance from home in cm.  used for checking horiz_max limit
 } guided_limit;
 
-// init - initialise guided controller
+// init - initialize guided controller
 bool ModeGuided::init(bool ignore_checks)
 {
     // start in velaccel control mode
@@ -44,6 +48,7 @@ bool ModeGuided::init(bool ignore_checks)
     // clear pause state when entering guided mode
     _paused = false;
 
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Finished initializing Guided mode. Returning True!");
     return true;
 }
 
@@ -85,6 +90,10 @@ void ModeGuided::run()
 
     case SubMode::VelAccel:
         velaccel_control_run();
+        break;
+
+    case SubMode::VelAccel_NE:
+        velaccel_ne_control_run();
         break;
 
     case SubMode::PosVelAccel:
@@ -267,6 +276,16 @@ void ModeGuided::velaccel_control_start()
 
     // initialise position controller
     pva_control_start();
+}
+
+// initialise guided mode's velocity and acceleration controller - horizontal plane only
+void ModeGuided::velaccel_ne_control_start()
+{
+    // set guided_mode to velocity controller
+    guided_mode = SubMode::VelAccel_NE;
+
+    // initialise position controller
+    pva_control_start();  // can stay the same?...
 }
 
 // initialise guided mode's position, velocity and acceleration controller
@@ -542,6 +561,13 @@ void ModeGuided::set_velocity(const Vector3f& velocity, bool use_yaw, float yaw_
     set_velaccel(velocity, Vector3f(), use_yaw, yaw_cd, use_yaw_rate, yaw_rate_cds, relative_yaw, log_request);
 }
 
+// ADDED FUNCTION FOR LANDING ON VEHICLE
+// Set_2D velocity, in horizontal plane - sets guided mode's target velocity
+void ModeGuided::set_velocity_ne(const Vector2f& velocity, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw, bool log_request)
+{
+    set_velaccel_ne(velocity, Vector2f(), use_yaw, yaw_cd, use_yaw_rate, yaw_rate_cds, relative_yaw, log_request);
+}
+
 // set_velaccel - sets guided mode's target velocity and acceleration
 void ModeGuided::set_velaccel(const Vector3f& velocity, const Vector3f& acceleration, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw, bool log_request)
 {
@@ -558,6 +584,31 @@ void ModeGuided::set_velaccel(const Vector3f& velocity, const Vector3f& accelera
     guided_pos_terrain_alt = false;
     guided_vel_target_cms = velocity;
     guided_accel_target_cmss = acceleration;
+    update_time_ms = millis();
+
+    // log target
+    if (log_request) {
+        copter.Log_Write_Guided_Position_Target(guided_mode, guided_pos_target_cm.tofloat(), guided_pos_terrain_alt, guided_vel_target_cms, guided_accel_target_cmss);
+    }
+}
+
+// ADDED FUNCTION FOR LANDING ON VEHICLE
+// set_velaccel - sets guided mode's target velocity and acceleration
+void ModeGuided::set_velaccel_ne(const Vector2f& velocity_ne, const Vector2f& acceleration_ne, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw, bool log_request)
+{
+    // check we are in velocity control mode
+    if (guided_mode != SubMode::VelAccel_NE) {
+        velaccel_ne_control_start();
+    }
+
+    // set yaw state
+    set_yaw_state(use_yaw, yaw_cd, use_yaw_rate, yaw_rate_cds, relative_yaw);
+
+    // set velocity and acceleration targets and zero position
+    guided_pos_target_cm.zero();
+    guided_pos_terrain_alt = false;
+    guided_vel_target_ne_cms = velocity_ne;
+    guided_accel_target_ne_cmss = acceleration_ne;
     update_time_ms = millis();
 
     // log target
@@ -884,6 +935,81 @@ void ModeGuided::velaccel_control_run()
     }
 }
 
+// ADDED FUNCTION FOR LANDING ON VEHICLE
+// velaccel_control_run - runs the guided velocity and acceleration controller
+// called from guided_run
+void ModeGuided::velaccel_ne_control_run()
+{
+    // process pilot's yaw input
+    float target_yaw_rate = 0;
+    if (!copter.failsafe.radio && use_pilot_yaw()) {
+        // get pilot's desired yaw rate
+        target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->norm_input_dz());
+        if (!is_zero(target_yaw_rate)) {
+            auto_yaw.set_mode(AUTO_YAW_HOLD);
+        }
+    }
+
+    // if not armed set throttle to zero and exit immediately
+    if (is_disarmed_or_landed()) {
+        // do not spool down tradheli when on the ground with motor interlock enabled
+        make_safe_ground_handling(copter.is_tradheli() && motors->get_interlock());
+        return;
+    }
+
+    // set motors to full range
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+
+    // set velocity to zero and stop rotating if no updates received for 3 seconds
+    uint32_t tnow = millis();
+    if (tnow - update_time_ms > get_timeout_ms()) {
+        // guided_vel_target_cms.zero();
+        // guided_accel_target_cmss.zero();
+        guided_vel_target_ne_cms.zero();
+        guided_accel_target_ne_cmss.zero();
+        if ((auto_yaw.mode() == AUTO_YAW_RATE) || (auto_yaw.mode() == AUTO_YAW_ANGLE_RATE)) {
+            auto_yaw.set_rate(0.0f);
+        }
+    }
+
+    bool do_avoid = false;
+// #if AC_AVOID_ENABLED
+//     // limit the velocity for obstacle/fence avoidance
+//     copter.avoid.adjust_velocity(guided_vel_target_cms, pos_control->get_pos_xy_p().kP(), pos_control->get_max_accel_xy_cmss(), pos_control->get_pos_z_p().kP(), pos_control->get_max_accel_z_cmss(), G_Dt);
+//     do_avoid = copter.avoid.limits_active();
+// #endif
+
+    // update position controller with new target
+
+    if (!stabilizing_vel_xy() && !do_avoid) {
+        // set the current commanded xy vel to the desired vel
+        guided_vel_target_ne_cms.x = pos_control->get_vel_desired_cms().x;
+        guided_vel_target_ne_cms.y = pos_control->get_vel_desired_cms().y;
+    }
+    pos_control->input_vel_accel_xy(guided_vel_target_ne_cms, guided_accel_target_ne_cmss, false);
+    if (!stabilizing_vel_xy() && !do_avoid) {
+        // set position and velocity errors to zero
+        pos_control->stop_vel_xy_stabilisation();
+    } else if (!stabilizing_pos_xy() && !do_avoid) {
+        // set position errors to zero
+        pos_control->stop_pos_xy_stabilisation();
+    }
+    // pos_control->input_vel_accel_z(guided_vel_target_cms.z, guided_accel_target_cmss.z, false, false);
+
+    // call velocity controller which includes z axis controller
+    pos_control->update_xy_controller();
+    // pos_control->update_z_controller(); This controller will be called fron the land_vertical_control_run function in landing mode.
+
+    // call attitude controller for yaw
+    if (auto_yaw.mode() == AUTO_YAW_HOLD) { // roll & pitch from position controller, yaw rate from pilot
+        attitude_control->input_thrust_vector_rate_heading(pos_control->get_thrust_vector(), target_yaw_rate);
+    } else if (auto_yaw.mode() == AUTO_YAW_RATE) { // roll & pitch from position controller, yaw rate from mavlink command or mission item
+        attitude_control->input_thrust_vector_rate_heading(pos_control->get_thrust_vector(), auto_yaw.rate_cds());
+    } else { // roll & pitch from position controller, yaw heading from GCS or auto_heading()
+        attitude_control->input_thrust_vector_heading(pos_control->get_thrust_vector(), auto_yaw.yaw(), auto_yaw.rate_cds());
+    }
+}
+
 // pause_control_run - runs the guided mode pause controller
 // called from guided_run
 void ModeGuided::pause_control_run()
@@ -1168,6 +1294,18 @@ const Vector3f& ModeGuided::get_target_accel() const
     return guided_accel_target_cmss;
 }
 
+// ADDED FUNCTIONs FOR LANDING ON VEHICLE:
+const Vector2f& ModeGuided::get_target_vel_ne() const // North-east horizontal plane only
+{
+    return guided_vel_target_ne_cms;
+}
+
+const Vector2f& ModeGuided::get_target_accel_ne() const // North-east horizontal plane only
+{
+    return guided_accel_target_ne_cmss;
+}
+///////////////////////////
+
 uint32_t ModeGuided::wp_distance() const
 {
     switch(guided_mode) {
@@ -1196,6 +1334,9 @@ int32_t ModeGuided::wp_bearing() const
     case SubMode::TakeOff:
     case SubMode::Accel:
     case SubMode::VelAccel:
+    // FOR LANDING ON MVING VEHICLE
+    case SubMode::VelAccel_NE:
+    /////////
     case SubMode::Angle:
         // these do not have bearings
         return 0;
@@ -1213,6 +1354,9 @@ float ModeGuided::crosstrack_error() const
     case SubMode::TakeOff:
     case SubMode::Accel:
     case SubMode::VelAccel:
+    // FOR LANDING ON MVING VEHICLE
+    case SubMode::VelAccel_NE:
+    /////////////
     case SubMode::PosVelAccel:
         return pos_control->crosstrack_error();
     case SubMode::Angle:

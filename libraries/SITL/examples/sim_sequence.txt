@@ -1,0 +1,22 @@
+vehicle 1
+param set wpnav_speed 400
+mode guided
+arm throttle
+takeoff 5
+
+vehicle 2
+param set landing_type 3
+param set wpnav_speed 2000
+mode guided
+arm throttle
+takeoff 10
+
+param show foll_*
+
+vehicle 1
+# Set position to fly to manually on map
+
+vehicle 2
+mode land
+
+

@@ -91,7 +91,6 @@
 #endif
 
 #include "RC_Channel.h"         // RC Channel Library
-
 #include "GCS_Mavlink.h"
 #include "GCS_Copter.h"
 #include "AP_Rally.h"           // Rally point library
@@ -196,9 +195,7 @@ public:
     friend class ToyMode;
     friend class RC_Channel_Copter;
     friend class RC_Channels_Copter;
-
     friend class AutoTune;
-
     friend class Mode;
     friend class ModeAcro;
     friend class ModeAcro_Heli;
@@ -678,6 +675,13 @@ private:
     void ten_hz_logging_loop();
     void twentyfive_hz_logging();
     void three_hz_loop();
+    // TESTING STUFF
+    Vector2f RF_distances; // Variables for calculations in three_hz_loop
+    Vector3f RF1_offsets;
+    Vector3f RF2_offsets;
+    float ground_inclination;
+    float tilt_compensation;
+    // TESTING STUFF END
     void one_hz_loop();
     void init_simple_bearing();
     void update_simple_mode(void);

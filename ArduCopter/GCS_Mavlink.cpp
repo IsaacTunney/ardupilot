@@ -146,6 +146,10 @@ void GCS_MAVLINK_Copter::send_position_target_local_ned()
     Vector3f target_pos;
     Vector3f target_vel;
     Vector3f target_accel;
+    // FOR LANDING ON MOVING VEHICLE:
+    Vector2f target_vel_ne;
+    Vector2f target_accel_ne;
+    //////////
     uint16_t type_mask = 0;
 
     switch (guided_mode) {
@@ -172,6 +176,14 @@ void GCS_MAVLINK_Copter::send_position_target_local_ned()
         target_vel = copter.mode_guided.get_target_vel() * 0.01f; // convert to metres/s
         target_accel = copter.mode_guided.get_target_accel() * 0.01f; // convert to metres/s/s
         break;
+    // ADDED SUBMODE FOR LANDING ON VEHICLE:
+    case ModeGuided::SubMode::VelAccel_NE:
+        type_mask = POSITION_TARGET_TYPEMASK_X_IGNORE | POSITION_TARGET_TYPEMASK_Y_IGNORE | POSITION_TARGET_TYPEMASK_Z_IGNORE |
+                    POSITION_TARGET_TYPEMASK_YAW_IGNORE| POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE; // ignore everything except velocity & acceleration
+        target_vel_ne = copter.mode_guided.get_target_vel_ne() * 0.01f; // convert to metres/s
+        target_accel_ne = copter.mode_guided.get_target_accel_ne() * 0.01f; // convert to metres/s/s
+        break;
+    ////////////////////
     case ModeGuided::SubMode::Accel:
         type_mask = POSITION_TARGET_TYPEMASK_X_IGNORE | POSITION_TARGET_TYPEMASK_Y_IGNORE | POSITION_TARGET_TYPEMASK_Z_IGNORE |
                     POSITION_TARGET_TYPEMASK_VX_IGNORE | POSITION_TARGET_TYPEMASK_VY_IGNORE | POSITION_TARGET_TYPEMASK_VZ_IGNORE |

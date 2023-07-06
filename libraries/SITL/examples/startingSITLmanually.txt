@@ -1,0 +1,20 @@
+cd
+
+# Pour run le leader :
+Dev/Git/ardupilot/build/sitl/bin/arducopter --model quad --home=-35.280252,149.005821,597.3,0 --uartA udpclient:"127.0.0.1" --uartC mcast:"" --defaults "Dev/Git/ardupilot/Tools/autotest/default_params/copter.parm","Dev/Git/ardupilot/copter1/leader.parm" 
+
+Pour run le follower :
+Dev/Git/ardupilot/build/sitl/bin/arducopter --model quad --home=-35.280752,149.005821,597.3,0 --uartA tcp:0 --uartC mcast:"" --instance 1 --defaults "Dev/Git/ardupilot/Tools/autotest/default_params/copter.parm","Dev/Git/ardupilot/copter1/follow.parm"
+ 
+Mavproxy pour toutes les instances de véhicules :
+mavproxy.py --master=mcast: --console --map
+
+# =============================================
+
+Pour run les mêmes véhicules mais avec le visuel gazebo, changer le --model pour "gazebo-iris" plutôt que quad!
+C'est gazebo-iris qui fait le pont avec le controller plugin ardupilot_gazebo!
+
+
+Dev/Git/ardupilot/build/sitl/bin/arducopter --model quad --home=-35.280252,149.005821,597.3,0 --uartA udpclient:"127.0.0.1" --uartC mcast: --defaults "Dev/Git/ardupilot/Tools/autotest/default_params/copter.parm","Dev/Git/ardupilot/copter1/leader.parm" 
+Dev/Git/ardupilot/build/sitl/bin/arducopter --model quad --home=-35.280752,149.005821,597.3,0 --uartA tcp:0 --uartC mcast: --instance 1 --defaults "Dev/Git/ardupilot/Tools/autotest/default_params/copter.parm","Dev/Git/ardupilot/copter1/follow.parm"
+ 

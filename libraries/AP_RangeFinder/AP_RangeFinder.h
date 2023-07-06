@@ -187,6 +187,10 @@ public:
     // any sensor which can current supply it
     float distance_orient(enum Rotation orientation) const;
     uint16_t distance_cm_orient(enum Rotation orientation) const;
+    // TESING STUFF
+    Vector2f get_both_distances_cm();
+    Vector3f get_rangefinder_offset_cm(int rangefinder_instance);
+    // TESTING STUFF END
     int16_t max_distance_cm_orient(enum Rotation orientation) const;
     int16_t min_distance_cm_orient(enum Rotation orientation) const;
     int16_t ground_clearance_cm_orient(enum Rotation orientation) const;

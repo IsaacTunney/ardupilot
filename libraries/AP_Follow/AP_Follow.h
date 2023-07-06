@@ -50,6 +50,21 @@ public:
     // set which target to follow
     void set_target_sysid(uint8_t sysid) { _sysid.set(sysid); }
 
+    // Get mavlink id of target to follow
+    AP_Int8 get_target_sysid() { return _sysid; }
+
+    // Get GPS status requirements
+    AP_Int8 get_gpss_req() { return _gpss_req; }
+
+    // Get target's GPS fix type (passed through  a mavlink message)
+    uint8_t get_target_gps_fix_type() { return _target_gps_fix_type; }
+
+    AP_Int16 get_max_speed_cms() { return _spd_cms; }
+
+    AP_Int8 get_heading_err_deg() { return _hd_err_d; }
+
+    AP_Float get_pos_d() { return _d_pos; }
+    
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
 
@@ -97,6 +112,14 @@ public:
 
     // get system time of last position update
     uint32_t get_last_update_ms() const { return _last_location_update_ms; }
+    
+    // get time in between target's position updates through mavlink
+    uint32_t get_time_between_updates_ms() const { return _time_between_updates_ms; }
+
+    // get number of mavlink messages received, for frequency calculations
+    uint8_t get_num_of_msg_received() const { return _num_of_msg_received; }
+
+    void reset_num_of_msg_received() { _num_of_msg_received = 0; }
 
     // parameter list
     static const struct AP_Param::GroupInfo var_info[];
@@ -119,28 +142,41 @@ private:
     // set recorded distance and bearing to target to zero
     void clear_dist_and_bearing_to_target();
 
-    // parameters
+    // In group parameters
     AP_Int8     _enabled;           // 1 if this subsystem is enabled
-    AP_Int16    _sysid;             // target's mavlink system id (0 to use first sysid seen)
+    AP_Int8     _sysid;             // target's mavlink system id (0 to use first sysid seen)
     AP_Float    _dist_max;          // maximum distance to target.  targets further than this will be ignored
     AP_Int8     _offset_type;       // offset frame type (0:North-East-Down, 1:RelativeToLeadVehicleHeading)
     AP_Vector3f _offset;            // offset from lead vehicle in meters
     AP_Int8     _yaw_behave;        // following vehicle's yaw/heading behaviour (see YAW_BEHAVE enum)
     AP_Int8     _alt_type;          // altitude source for follow mode
-    AC_P        _p_pos;             // position error P controller
+    AC_P        _p_pos;             // Position error proportional gain (kP)
+    AP_Int8     _gpss_req;          // GPS status requirement to allow entering Follow Mode
+    AP_Int16    _spd_cms;           // Max speed in Follow mode
+    AP_Int8     _hd_err_d;          // Target's heading error relative to it's velocity vector, degrees
+    AP_Float    _d_pos;             // D gain for mode Follow controller
+
+    // Out of group parameters
+    AP_Int16    _gps_delay;         // GPS delay to be manually set by user
 
     // local variables
-    bool _healthy;                  // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
-    uint32_t _last_location_update_ms;  // system time of last position update
-    Location _target_location;      // last known location of target
-    Vector3f _target_velocity_ned;  // last known velocity of target in NED frame in m/s
-    Vector3f _target_accel_ned;     // last known acceleration of target in NED frame in m/s/s
-    uint32_t _last_heading_update_ms;   // system time of last heading update
-    float _target_heading;          // heading in degrees
-    bool _automatic_sysid;          // did we lock onto a sysid automatically?
-    float _dist_to_target;          // latest distance to target in meters (for reporting purposes)
-    float _bearing_to_target;       // latest bearing to target in degrees (for reporting purposes)
-    bool _offsets_were_zero;        // true if offsets were originally zero and then initialised to the offset from lead vehicle
+    bool     _healthy;                 // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
+    uint32_t _last_location_update_ms; // system time of last position update
+    uint32_t _last_gps_update_ms;      // System time of last gps raw int update
+    uint32_t _time_between_updates_ms; // To see at what rate mavlink messages are being updated
+    uint32_t _time_since_last_update;
+    bool     _updated_last;            // Flag to keep in memory last state of mavlink msg update
+    int      _num_of_msg_received;
+    Location _target_location;         // last known location of target
+    Vector3f _target_velocity_ned;     // last known velocity of target in NED frame in m/s
+    Vector3f _target_accel_ned;        // last known acceleration of target in NED frame in m/s/s
+    uint32_t _last_heading_update_ms;  // system time of last heading update
+    float _target_heading;             // heading in degrees
+    bool _automatic_sysid;             // did we lock onto a sysid automatically?
+    float _dist_to_target;             // latest distance to target in meters (for reporting purposes)
+    float _bearing_to_target;          // latest bearing to target in degrees (for reporting purposes)
+    bool _offsets_were_zero;           // true if offsets were originally zero and then initialised to the offset from lead vehicle
+    uint8_t _target_gps_fix_type;      // Fix type of target's GPS. To make sure we don't lose RTK fix during landing sequence.
 
     // setup jitter correction with max transport lag of 3s
     JitterCorrection _jitter{3000};

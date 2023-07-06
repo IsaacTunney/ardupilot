@@ -104,6 +104,38 @@ const AP_Param::Info Copter::var_info[] = {
     // @Bitmask: 0:Roll,1:Pitch,2:Yaw,3:AccelZ
     GSCALAR(gcs_pid_mask,           "GCS_PID_MASK",     0),
 
+    // @Param: LAND_RVT_PWM
+    // @DisplayName: Reverse thrust PWM
+    // @Description: Set the PWM of reverse thrust for custom landing mode. Between 1000 and 1500.
+    // @User: Advanced
+    // @Units: PWM
+    // @Range: 1000 1500
+    GSCALAR(land_rvt_pwm, "LAND_RVT_PWM", LAND_RVT_PWM_DEFAULT),
+
+    // @Param: LAND_SHUTDOWN_CM
+    // @DisplayName: Landing shutdown height
+    // @Description: The height at which motors are shutdown during landing sequence
+    // @User: Advanced
+    // @Units: cm
+    // @Range: 0 50
+    GSCALAR(land_shutdown_cm, "LAND_SHUTDOWN_CM", LAND_SHUTDOWN_HEIGHT_DEFAULT),
+
+    // @Param: LAND_TYPE
+    // @DisplayName: Land type
+    // @Description: The type of landing to perform: on roofs (or ice/rough terrain), on boats, or on moving vehicle
+    // @User: Advanced
+    // @Units: No units
+    // @Range: ROOF, BOAT or VEHICLE
+    GSCALAR(land_type, "LAND_TYPE", LAND_TYPE_DEFAULT),
+
+    // @Param: LAND_USE_RNGFND
+    // @DisplayName: Rangefinder use during landing
+    // @Description: Rangefinder used or not during landing sequence
+    // @User: Advanced
+    // @Units: No units
+    // @Range: 1 (use) or 0 (don't use)
+    GSCALAR(land_use_rf, "LAND_USE_RNGFND", LAND_USE_RNGFND_DEFAULT),
+
 #if MODE_RTL_ENABLED == ENABLED
     // @Param: RTL_ALT
     // @DisplayName: RTL Altitude
@@ -703,14 +735,15 @@ const AP_Param::Info Copter::var_info[] = {
     // @Path: ../libraries/AP_Notify/AP_Notify.cpp
     GOBJECT(notify, "NTF_",  AP_Notify),
 
-#if MODE_THROW_ENABLED == ENABLED
-    // @Param: THROW_MOT_START
-    // @DisplayName: Start motors before throwing is detected
-    // @Description: Used by Throw mode. Controls whether motors will run at the speed set by MOT_SPIN_MIN or will be stopped when armed and waiting for the throw.
-    // @Values: 0:Stopped,1:Running
-    // @User: Standard
-    GSCALAR(throw_motor_start, "THROW_MOT_START", (float)ModeThrow::PreThrowMotorState::STOPPED),
-#endif
+// ********** COMMENTED OUT FOR BENCH TEST MODE **********
+// #if MODE_THROW_ENABLED == ENABLED
+//     // @Param: THROW_MOT_START
+//     // @DisplayName: Start motors before throwing is detected
+//     // @Description: Used by Throw mode. Controls whether motors will run at the speed set by MOT_SPIN_MIN or will be stopped when armed and waiting for the throw.
+//     // @Values: 0:Stopped,1:Running
+//     // @User: Standard
+//     GSCALAR(throw_motor_start, "THROW_MOT_START", (float)ModeThrow::PreThrowMotorState::STOPPED),
+// #endif
 
 #if OSD_ENABLED || OSD_PARAM_ENABLED
     // @Group: OSD
@@ -753,21 +786,22 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPPTR(button_ptr, "BTN_", 2, ParametersG2, AP_Button),
 #endif
 
-#if MODE_THROW_ENABLED == ENABLED
-    // @Param: THROW_NEXTMODE
-    // @DisplayName: Throw mode's follow up mode
-    // @Description: Vehicle will switch to this mode after the throw is successfully completed.  Default is to stay in throw mode (18)
-    // @Values: 3:Auto,4:Guided,5:LOITER,6:RTL,9:Land,17:Brake,18:Throw
-    // @User: Standard
-    AP_GROUPINFO("THROW_NEXTMODE", 3, ParametersG2, throw_nextmode, 18),
+// ********** COMMENTED OUT FOR BENCH TEST MODE **********
+// #if MODE_THROW_ENABLED == ENABLED
+//     // @Param: THROW_NEXTMODE
+//     // @DisplayName: Throw mode's follow up mode
+//     // @Description: Vehicle will switch to this mode after the throw is successfully completed.  Default is to stay in throw mode (18)
+//     // @Values: 3:Auto,4:Guided,5:LOITER,6:RTL,9:Land,17:Brake,18:Throw
+//     // @User: Standard
+//     AP_GROUPINFO("THROW_NEXTMODE", 3, ParametersG2, throw_nextmode, 18),
 
-    // @Param: THROW_TYPE
-    // @DisplayName: Type of Type
-    // @Description: Used by Throw mode. Specifies whether Copter is thrown upward or dropped.
-    // @Values: 0:Upward Throw,1:Drop
-    // @User: Standard
-    AP_GROUPINFO("THROW_TYPE", 4, ParametersG2, throw_type, (float)ModeThrow::ThrowType::Upward),
-#endif
+//     // @Param: THROW_TYPE
+//     // @DisplayName: Type of Type
+//     // @Description: Used by Throw mode. Specifies whether Copter is thrown upward or dropped.
+//     // @Values: 0:Upward Throw,1:Drop
+//     // @User: Standard
+//     AP_GROUPINFO("THROW_TYPE", 4, ParametersG2, throw_type, (float)ModeThrow::ThrowType::Upward),
+// #endif
 
     // @Param: GND_EFFECT_COMP
     // @DisplayName: Ground Effect Compensation Enable/Disable

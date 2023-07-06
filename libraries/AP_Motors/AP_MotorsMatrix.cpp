@@ -144,20 +144,24 @@ void AP_MotorsMatrix::output_to_motors()
 {
     int8_t i;
 
-    switch (_spool_state) {
-        case SpoolState::SHUT_DOWN: {
+    switch (_spool_state)
+    {
+        case SpoolState::SHUT_DOWN:
             // no output
-            for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
-                if (motor_enabled[i]) {
+            for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++)
+            {
+                if (motor_enabled[i])
+                {
                     _actuator[i] = 0.0f;
                 }
             }
             break;
-        }
         case SpoolState::GROUND_IDLE:
             // sends output to motors when armed but not flying
-            for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
-                if (motor_enabled[i]) {
+            for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++)
+            {
+                if (motor_enabled[i])
+                {
                     set_actuator_with_slew(_actuator[i], actuator_spin_up_to_ground_idle());
                 }
             }
@@ -166,18 +170,54 @@ void AP_MotorsMatrix::output_to_motors()
         case SpoolState::THROTTLE_UNLIMITED:
         case SpoolState::SPOOLING_DOWN:
             // set motor output based on thrust requests
-            for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
-                if (motor_enabled[i]) {
+            for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++)
+            {
+                if (motor_enabled[i])
+                {
                     set_actuator_with_slew(_actuator[i], thrust_to_actuator(_thrust_rpyt_out[i]));
                 }
             }
             break;
     }
 
-    // convert output to PWM and send to each motor
-    for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
-        if (motor_enabled[i]) {
-            rc_write(i, output_to_pwm(_actuator[i]));
+    for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++)
+    {
+        float pwm_output;
+        if (motor_enabled[i])
+        {
+            if (_spool_state == SpoolState::SHUT_DOWN) // SpoolState SHUT_DOWN is true when emergency switch is activated!
+            { 
+                if (_disarm_disable_pwm && !armed()) // in shutdown mode, use PWM 0 or minimum PWM
+                {
+                    pwm_output = 0;
+                }
+                else
+                {
+                    pwm_output = get_pwm_output_min();
+                }
+            }
+            else
+            {
+                if (_activate_rvt) // Reverse thrust
+                {
+                    pwm_output = _rvt_pwm; // Parameter used to set reverse thrust PWM
+                }
+                else if (_activate_rvt_ct) // Reverse thrust - counter-torque feature
+                {
+                    if (i==1 || i==3) { pwm_output = 1500; }
+                    else { pwm_output = 1000; }
+                }
+                else if (_shutdown_motors) // Motors rotation stopped
+                {
+                    pwm_output = 1500; // Equal to motor stop in bi-directional mode
+                }
+                else // Normal procedure
+                {
+                    // rc_write(i, output_to_pwm(_actuator[i]));
+                    pwm_output = get_pwm_output_min() + (get_pwm_output_max() - get_pwm_output_min()) * _actuator[i];
+                }
+            }
+            rc_write(i, pwm_output);
         }
     }
 }

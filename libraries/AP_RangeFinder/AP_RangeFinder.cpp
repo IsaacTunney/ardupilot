@@ -706,6 +706,35 @@ AP_RangeFinder_Backend *RangeFinder::find_instance(enum Rotation orientation) co
     return nullptr;
 }
 
+// TESTING STUFF
+Vector2f RangeFinder::get_both_distances_cm()
+{
+    // Iterate through both rangefinders to get distances
+    Vector2f distances;
+    for (uint8_t i=0; i<num_instances; i++)
+    {
+        AP_RangeFinder_Backend *backend = get_backend(i);
+        if (backend != nullptr)
+        {
+            distances[i] = backend->distance_cm();
+            // gcs().send_text(MAV_SEVERITY_CRITICAL, "RF %1.0d : Distance: %4.02f", i+1, distances[i] );
+        }
+    }
+    return distances;
+}
+
+Vector3f RangeFinder::get_rangefinder_offset_cm(int rangefinder_instance)
+{
+    AP_RangeFinder_Backend *backend = get_backend(rangefinder_instance);
+    Vector3f offset;
+    if (backend != nullptr)
+    {
+       offset = backend->get_pos_offset()*100;
+    }
+    return offset;
+}
+// TESTING STUFF END
+
 float RangeFinder::distance_orient(enum Rotation orientation) const
 {
     AP_RangeFinder_Backend *backend = find_instance(orientation);

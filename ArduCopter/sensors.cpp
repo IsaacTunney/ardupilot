@@ -1,4 +1,5 @@
 #include "Copter.h"
+#include <GCS_MAVLink/GCS.h>
 
 // return barometric altitude in centimeters
 void Copter::read_barometer(void)
@@ -45,6 +46,7 @@ void Copter::read_rangefinder(void)
     for (uint8_t i=0; i < ARRAY_SIZE(rngfnd); i++) {
         // local variables to make accessing simpler
         RangeFinderState &rf_state = rngfnd[i].state;
+
         enum Rotation rf_orient = rngfnd[i].orientation;
 
         // update health
@@ -57,7 +59,7 @@ void Copter::read_rangefinder(void)
         // remember inertial alt to allow us to interpolate rangefinder
         rf_state.inertial_alt_cm = inertial_nav.get_position_z_up_cm();
 
-        // glitch handling.  rangefinder readings more than RANGEFINDER_GLITCH_ALT_CM from the last good reading
+        // glitch handling. rangefinder readings more than RANGEFINDER_GLITCH_ALT_CM from the last good reading
         // are considered a glitch and glitch_count becomes non-zero
         // glitches clear after RANGEFINDER_GLITCH_NUM_SAMPLES samples in a row.
         // glitch_cleared_ms is set so surface tracking (or other consumers) can trigger a target reset
