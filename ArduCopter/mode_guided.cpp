@@ -48,7 +48,7 @@ bool ModeGuided::init(bool ignore_checks)
     // clear pause state when entering guided mode
     _paused = false;
 
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Finished initializing Guided mode. Returning True!");
+    gcs().send_text(MAV_SEVERITY_INFO, "Finished initializing Guided mode. Returning True!");
     return true;
 }
 

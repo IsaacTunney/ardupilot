@@ -251,7 +251,7 @@ void ModeFollow::run()
     if (runCount%400 == 0)
     {
         uint32_t avg_time_ms = (time_now_ms-time_last_ms) / g2.follow.get_num_of_msg_received();
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %3d Hz", 1000/avg_time_ms );
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %3f Hz", (double)1000/avg_time_ms );
         g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
         time_last_ms = time_now_ms;
     }
