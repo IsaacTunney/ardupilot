@@ -420,7 +420,7 @@ void ModeLand::follow_target_3D()
         //     *Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
         //      (Degré de confiance proportionnel à son amplitude)
         //    **Éventuellement, pour augmenter vitesse calcul, mettre ces checks avant le reste des opérations ci-dessus
-        if ( sqrtf( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
+        if ( safe_sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
             target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
             float heading_offset = abs(target_speed_bearing - target_heading);
@@ -581,7 +581,7 @@ void ModeLand::follow_target_2D()
         //     *Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
         //      (Degré de confiance proportionnel à son amplitude)
         //    **Éventuellement, pour augmenter vitesse calcul, mettre ces checks avant le reste des opérations ci-dessus
-        if ( sqrtf( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
+        if ( safe_sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
             target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
             float heading_offset = abs(target_speed_bearing - target_heading);
@@ -950,7 +950,7 @@ bool ModeLand::is_lean_angle_stabilizing()
 {
     // If angular rate within a certain range of 0 and lean angle not too high, let's consider the angle
     // to have stabilized
-    bool condition1 = ( sqrtf(sq(ahrs.get_gyro_latest().x)+sq(ahrs.get_gyro_latest().y)) <= 0.2 );
+    bool condition1 = ( safe_sqrt(sq(ahrs.get_gyro_latest().x)+sq(ahrs.get_gyro_latest().y)) <= 0.2 );
     float lean_angle_deg = degrees(acosf(ahrs.cos_roll()*ahrs.cos_pitch()));
     bool condition2 = lean_angle_deg<=65; //assuming landing on slopes with angles smaller than 65°
     return condition1 && condition2;
