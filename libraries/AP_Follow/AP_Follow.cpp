@@ -555,7 +555,7 @@ bool AP_Follow::get_offsets_ned(Vector3f &offset) const
     float target_heading_deg;
     float target_velocity;
     float target_speed_bearing = get_bearing_cd(Vector2f{}, _target_velocity_ned.xy())/100; // 0 to 360 deg
-    target_velocity = sqrt( sq(_target_velocity_ned.x) + sq(_target_velocity_ned.y) );
+    target_velocity = safe_sqrt( sq(_target_velocity_ned.x) + sq(_target_velocity_ned.y) );
 
     if (get_target_heading_deg(target_heading_deg)) // If able to get target's heading
     {   

@@ -195,7 +195,7 @@ void ModeFollow::run()
         //     *Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
         //      (Degré de confiance proportionnel à son amplitude)
         //    **Éventuellement, pour augmenter vitesse calcul, mettre ces checks avant le reste des opérations ci-dessus
-        if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
+        if ( safe_sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
             target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
             float heading_offset = abs(target_speed_bearing - target_heading);
@@ -216,7 +216,7 @@ void ModeFollow::run()
 
         // FOR TESTING
         // USE VELOCITY TO CALCULATE RELATIVE POSITION
-        if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
+        if ( safe_sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
             target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
             float heading_offset = abs(target_speed_bearing - target_heading);
@@ -251,7 +251,7 @@ void ModeFollow::run()
     if (runCount%400 == 0)
     {
         uint32_t avg_time_ms = (time_now_ms-time_last_ms) / g2.follow.get_num_of_msg_received();
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %3ld Hz", 1000/avg_time_ms );
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %3f Hz", (double)1000/avg_time_ms );
         g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
         time_last_ms = time_now_ms;
     }

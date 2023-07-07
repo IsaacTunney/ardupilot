@@ -276,7 +276,7 @@ bool ModeThrow::is_lean_angle_stabilizing()
 {
     // If angular rate within a certain range of 0 and lean angle not too high, let's consider the angle
     // to have stabilized
-    bool condition1 = ( sqrt(sq(ahrs.get_gyro_latest().x)+sq(ahrs.get_gyro_latest().y)) <= 0.2 );
+    bool condition1 = ( safe_sqrt(sq(ahrs.get_gyro_latest().x)+sq(ahrs.get_gyro_latest().y)) <= 0.2 );
     float lean_angle_deg = degrees(acosf(ahrs.cos_roll()*ahrs.cos_pitch()));
     bool condition2 = lean_angle_deg<=65; //assuming landing on slopes with angles smaller than 65°
     return condition1 && condition2;
