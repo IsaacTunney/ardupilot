@@ -1103,141 +1103,44 @@ private:
 };
 
 
-class ModeLand : public ModeGuided {
+class ModeLand : public Mode {
 
 public:
     // inherit constructor
-    using ModeGuided::Mode;
+    using Mode::Mode;
     Number mode_number() const override { return Number::LAND; }
 
     bool init(bool ignore_checks) override;
-    void exit() override;
     void run() override;
 
     bool requires_GPS() const override { return false; }
     bool has_manual_throttle() const override { return false; }
     bool allows_arming(AP_Arming::Method method) const override { return false; };
     bool is_autopilot() const override { return true; }
+
     bool is_landing() const override { return true; };
+
     void do_not_use_GPS();
 
     // returns true if LAND mode is trying to control X/Y position
     bool controlling_position() const { return control_position; }
+
     void set_land_pause(bool new_value) { land_pause = new_value; }
-
-        // Auto Pilot Modes enumeration
-    enum LandingType : int8_t {
-        ROOF    = 0,
-        ICE     = 1,
-        BOAT    = 2,
-        VEHICLE = 3,
-    };
-
-    enum state_stateMachine
-    {
-        INIT,
-        DESCENT,
-        DESCENT_WITHOUT_RF,
-        COUNTDOWN,
-        DROPPING,
-        TOUCHING_GROUND,
-        RVT,
-        FLIPPING,
-        LANDED_BUT_STILL_ALERT,
-        DONE,
-        ABORT_LANDING,
-    }; state_stateMachine state; //declare variable to hold enum state
-
-    enum state_landingMode
-    {
-        REACTIVE,
-        PROACTIVE,
-    }; state_landingMode landingMode;
-
-    enum state_landingOnVehicle
-    {
-        FOLLOWING,
-        READY_FOR_DESCENT,
-        LANDING,
-    } landingOnVehicle_state, landingOnVehicle_previousState;
 
 protected:
 
     const char *name() const override { return "LAND"; }
     const char *name4() const override { return "LAND"; }
-    uint32_t last_log_ms;   // system time of last time desired velocity was logging
 
 private:
 
-    void landing_with_gps_run();
-    void landing_on_moving_vehicle_run();
-    void landing_without_gps_run();
-
-    void follow_target_3D();
-    void follow_target_2D();
-    bool target_over_vehicle_has_been_reached();
-    bool user_has_allowed_landing_on_vehicle();
-
-    bool do_prelanding_verifications();
-    bool RF_glitch_detected();
-    bool drone_was_too_far_from_ground();
-    void run_landing_state_machine();
-    bool is_quad_dropping();
-    bool is_quad_touching_ground();
-    bool is_quad_tilting();
-    bool is_quad_flipping();
-    bool is_quad_sliding();
-    bool quad_has_landed();
-    bool is_flipping_getting_worse();
-    bool is_lean_angle_stabilizing();
-    void process_pilot_inputs(float target_roll, float target_pitch, float target_yaw_rate);
-    
-    float motors_output;
-    Vector2f motors_input;
+    void gps_run();
+    void nogps_run();
 
     bool control_position; // true if we are using an external reference to control position
-    int32_t height_above_ground_cm;
-    int32_t RFdistance_buffer[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     uint32_t land_start_time;
-    uint32_t land_loop_time;
-    int      lsmCount; // Landing state-machine iteration counter
-    int      runCount; // Main run loop iteration counter
-
-    bool     start_countdown_before_drop;
-    uint32_t reverse_thrust_timer;
-
-    double countdown_duration;
-    uint32_t countdown_start;
-    uint32_t countdown_chrono;
-
-    uint32_t dropping_max_duration;
-    uint32_t dropping_start;
-    uint32_t dropping_chrono;
-
-    uint32_t rvt_duration;
-    uint32_t rvt_start;
-    uint32_t rvt_chrono;
-
-    bool     shutdown_motors;
-    bool     activate_rvt;
-    bool     activate_rvt_countertorque;
-
-    bool     land_pause;
-    Vector2f horizontal_dist_from_target_with_offset_cm;
-    bool     switchLandingState;
-
-    uint32_t last_run_loop_ms;
-
-    // For following:
-    bool     allow_following;
-    bool     target_was_acquired;
-    bool     msg_target_reached_sent;
-    float    target_speed_bearing;
-    uint64_t time_last_ms;
-
-    bool use_rangefinder;
-
+    bool land_pause;
 };
 
 
@@ -1677,128 +1580,215 @@ private:
     } systemid_state;
 };
 
-class ModeThrow : public Mode
-{
-    public:
-        // inherit constructors
-        using Mode::Mode;
-        Number mode_number() const override { return Number::THROW; }
+//###############################################################
+//##########  MODE THROW IS USED FOR CUSTOM LANDING  ############
+//###############################################################
+class ModeThrow : public ModeGuided {
 
-        bool init(bool ignore_checks) override;
-        void run() override;
-        void output_to_motors() override;
+public:
+    // inherit constructor
+    using ModeGuided::Mode;
+    Number mode_number() const override { return Number::THROW; }
 
-        // void exit() override;
-        bool requires_GPS() const override { return false; }
-        bool has_manual_throttle() const override { return false; } //true
-        bool allows_arming(AP_Arming::Method method) const override { return true; }
-        bool is_autopilot() const override { return true; } //false
-        // void change_motor_direction(bool reverse);
+    bool init(bool ignore_checks) override;
+    void exit() override;
+    void run() override;
 
-        enum state_testMode
-        {
-            INIT,
-            WAIT,
-            DROPPING,
-            TOUCHING_GROUND,
-            FULL_RVT,
-            FLIPPING,
-            // SLIDING,
-            // LANDING_SAFELY,
-            LANDED,
-            DONE,
-        };
-        state_testMode state; //declare variable to hold enum state
+    bool requires_GPS() const override { return false; }
+    bool has_manual_throttle() const override { return false; }
+    bool allows_arming(AP_Arming::Method method) const override { return false; };
+    bool is_autopilot() const override { return true; }
+    bool is_landing() const override { return true; };
+    // void do_not_use_GPS();
 
-        enum state_landingMode
-        {
-            REACTIVE,
-            PROACTIVE,
-        };
-        state_landingMode landingMode;
+    // returns true if LAND mode is trying to control X/Y position
+    bool controlling_position() const { return control_position; }
+    void set_land_pause(bool new_value) { land_pause = new_value; }
 
-    protected:
-        const char *name() const override { return "THROW"; }
-        const char *name4() const override { return "THRW"; }
+        // Auto Pilot Modes enumeration
+    enum LandingType : int8_t {
+        ROOF    = 0,
+        ICE     = 1,
+        BOAT    = 2,
+        VEHICLE = 3,
+    };
 
-    private:
+    enum state_stateMachine
+    {
+        INIT,
+        DESCENT,
+        DESCENT_WITHOUT_RF,
+        COUNTDOWN,
+        DROPPING,
+        TOUCHING_GROUND,
+        RVT,
+        FLIPPING,
+        LANDED_BUT_STILL_ALERT,
+        DONE,
+        ABORT_LANDING,
+    }; state_stateMachine state; //declare variable to hold enum state
 
-        bool is_quad_dropping();
-        bool is_quad_touching_ground();
-        bool is_quad_flipping();
-        bool is_quad_sliding();
-        bool quad_has_landed();
-        bool is_flipping_getting_worse();
-        bool is_lean_angle_stabilizing();
+    enum state_landingMode
+    {
+        REACTIVE,
+        PROACTIVE,
+    }; state_landingMode landingMode;
 
-        bool activate_rvt;
-        bool activate_rvt_front_only;
-        bool activate_max_rvt_for_sliding;
-        int  rvt_pwm;
-        int  ii;
-        uint32_t full_rvt_timer;
-        uint32_t wait_timer;
-        uint32_t dropping_time;
-        uint32_t dropping_start_timer;
+    enum state_landingOnVehicle
+    {
+        FOLLOWING,
+        READY_FOR_DESCENT,
+        LANDING,
+    } landingOnVehicle_state, landingOnVehicle_previousState;
 
+protected:
 
-        float motors_output;
-        Vector2f motors_input;
+    const char *name() const override { return "THROW"; }
+    const char *name4() const override { return "THRW"; }
+    uint32_t last_log_ms; // system time of last time desired velocity was logging
+
+private:
+
+    void landing_with_gps_run();
+    void landing_on_moving_vehicle_run();
+    void landing_without_gps_run();
+
+    void follow_target_3D();
+    void follow_target_2D();
+    bool target_over_vehicle_has_been_reached();
+    bool user_has_allowed_landing_on_vehicle();
+
+    bool do_prelanding_verifications();
+    bool RF_glitch_detected();
+    bool drone_was_too_far_from_ground();
+    void run_landing_state_machine();
+    bool is_quad_dropping();
+    bool is_quad_touching_ground();
+    bool is_quad_tilting();
+    bool is_quad_flipping();
+    bool is_quad_sliding();
+    bool quad_has_landed();
+    bool is_flipping_getting_worse();
+    bool is_lean_angle_stabilizing();
+    void process_pilot_inputs(float target_roll, float target_pitch, float target_yaw_rate);
+    
+    float motors_output;
+    Vector2f motors_input;
+
+    bool control_position; // true if we are using an external reference to control position
+    int32_t height_above_ground_cm;
+    int32_t RFdistance_buffer[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    bool use_rangefinder;
+
+    uint32_t land_start_time;
+    uint32_t land_loop_time;
+    int      lsmCount; // Landing state-machine iteration counter
+    int      runCount; // Main run loop iteration counter
+
+    bool     start_countdown_before_drop;
+    uint32_t reverse_thrust_timer;
+
+    double countdown_duration;
+    uint32_t countdown_start;
+    uint32_t countdown_chrono;
+
+    uint32_t dropping_max_duration;
+    uint32_t dropping_start;
+    uint32_t dropping_chrono;
+
+    uint32_t rvt_duration;
+    uint32_t rvt_start;
+    uint32_t rvt_chrono;
+
+    bool     shutdown_motors;
+    bool     activate_rvt;
+    bool     activate_rvt_countertorque;
+
+    bool     land_pause;
+    Vector2f horizontal_dist_from_target_with_offset_cm;
+    bool     switchLandingState;
+
+    uint32_t last_run_loop_ms;
+
+    // For following:
+    bool     allow_following;
+    bool     target_was_acquired;
+    bool     msg_target_reached_sent;
+    float    target_speed_bearing;
+    uint64_t time_last_ms;
 
 };
-// REAL CODE OF THE MODE THROW
-// public:
-//     // inherit constructor
-//     using Mode::Mode;
-//     Number mode_number() const override { return Number::THROW; }
 
-//     bool init(bool ignore_checks) override;
-//     void run() override;
+//###############################################################
+//#######  MODE THROW UTILISÉ POUR TESTS EN SALLE LEUE  #########
+//###############################################################
+// class ModeThrow : public Mode
+// {
+//     public:
+//         // inherit constructors
+//         using Mode::Mode;
+//         Number mode_number() const override { return Number::THROW; }
 
-//     bool requires_GPS() const override { return true; }
-//     bool has_manual_throttle() const override { return false; }
-//     bool allows_arming(AP_Arming::Method method) const override { return true; };
-//     bool is_autopilot() const override { return false; }
+//         bool init(bool ignore_checks) override;
+//         void run() override;
+//         void output_to_motors() override;
 
-//     // Throw types
-//     enum class ThrowType {
-//         Upward = 0,
-//         Drop = 1
-//     };
+//         // void exit() override;
+//         bool requires_GPS() const override { return false; }
+//         bool has_manual_throttle() const override { return false; } //true
+//         bool allows_arming(AP_Arming::Method method) const override { return true; }
+//         bool is_autopilot() const override { return true; } //false
+//         // void change_motor_direction(bool reverse);
 
-//     enum class PreThrowMotorState {
-//         STOPPED = 0,
-//         RUNNING = 1,
-//     };
+//         enum state_testMode
+//         {
+//             INIT,
+//             WAIT,
+//             DROPPING,
+//             TOUCHING_GROUND,
+//             FULL_RVT,
+//             FLIPPING,
+//             // SLIDING,
+//             // LANDING_SAFELY,
+//             LANDED,
+//             DONE,
+//         };
+//         state_testMode state; //declare variable to hold enum state
 
-// protected:
+//         enum state_landingMode
+//         {
+//             REACTIVE,
+//             PROACTIVE,
+//         };
+//         state_landingMode landingMode;
 
-//     const char *name() const override { return "THROW"; }
-//     const char *name4() const override { return "THRW"; }
+//     protected:
+//         const char *name() const override { return "THROW"; }
+//         const char *name4() const override { return "THRW"; }
 
-// private:
+//     private:
 
-//     bool throw_detected();
-//     bool throw_position_good() const;
-//     bool throw_height_good() const;
-//     bool throw_attitude_good() const;
+//         bool is_quad_dropping();
+//         bool is_quad_touching_ground();
+//         bool is_quad_flipping();
+//         bool is_quad_sliding();
+//         bool quad_has_landed();
+//         bool is_flipping_getting_worse();
+//         bool is_lean_angle_stabilizing();
 
-//     // Throw stages
-//     enum ThrowModeStage {
-//         Throw_Disarmed,
-//         Throw_Detecting,
-//         Throw_Wait_Throttle_Unlimited,
-//         Throw_Uprighting,
-//         Throw_HgtStabilise,
-//         Throw_PosHold
-//     };
+//         bool activate_rvt;
+//         bool activate_rvt_front_only;
+//         bool activate_max_rvt_for_sliding;
+//         int  rvt_pwm;
+//         int  ii;
+//         uint32_t full_rvt_timer;
+//         uint32_t wait_timer;
+//         uint32_t dropping_time;
+//         uint32_t dropping_start_timer;
 
-//     ThrowModeStage stage = Throw_Disarmed;
-//     ThrowModeStage prev_stage = Throw_Disarmed;
-//     uint32_t last_log_ms;
-//     bool nextmode_attempted;
-//     uint32_t free_fall_start_ms;    // system time free fall was detected
-//     float free_fall_start_velz;     // vertical velocity when free fall was detected
+//         float motors_output;
+//         Vector2f motors_input;
+
 // };
 
 #if MODE_TURTLE_ENABLED == ENABLED
