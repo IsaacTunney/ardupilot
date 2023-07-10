@@ -1641,6 +1641,12 @@ public:
         LANDING,
     } landingOnVehicle_state, landingOnVehicle_previousState;
 
+    enum state_landingManoeuver
+    {
+        NORMAL,
+        PITCH_TO_ZERO,
+    } landingManoeuver;
+
 protected:
 
     const char *name() const override { return "THROW"; }
@@ -1655,6 +1661,7 @@ private:
 
     void follow_target_3D();
     void follow_target_2D();
+    void follow_target_2D_pitch_to_zero();
     bool target_over_vehicle_has_been_reached();
     bool user_has_allowed_landing_on_vehicle();
 

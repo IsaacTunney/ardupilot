@@ -204,9 +204,8 @@ void ModeFollow::run()
             allow_following = false; // Set flag to block the pursuit of the landing sequence after a bug
         }
 
-        // Check heading against target velocity heading: (should match)
+        // Check heading against target velocity heading (should match)
         //     *Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
-        //      (Degré de confiance proportionnel à son amplitude)
         //    **Éventuellement, pour augmenter vitesse calcul, mettre ces checks avant le reste des opérations ci-dessus
         if ( safe_sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
         {
@@ -227,39 +226,16 @@ void ModeFollow::run()
             target_speed_bearing = 0; // Speed not high enough to determine a proper target speed bearing
         }
 
-        // FOR TESTING
-        // USE VELOCITY TO CALCULATE RELATIVE POSITION
-        if ( safe_sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) // Only calculate if speed is significant enough
-        {
-            target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; // 0 to 360 deg
-            float heading_offset = abs(target_speed_bearing - target_heading);
-            if ( heading_offset > (360 - g2.follow.get_heading_err_deg()) ) { heading_offset = 360 - heading_offset; }
-            if ( heading_offset > g2.follow.get_heading_err_deg() ) // If offset is too large, there is a problem!
-            {
-                gcs().send_text(MAV_SEVERITY_CRITICAL, "Offset too large between heading and velocity vector. Killing Follow Task.");
-                desired_velocity_neu_cms.zero();
-                use_yaw = false;
-                yaw_cd = 0.0f;
-                allow_following = false; // Set flag to block the pursuit of the landing sequence after a bug
-            }
-        }
-        else
-        {
-            target_speed_bearing = 0; // Speed not high enough to determine a proper target speed bearing
-        }
-        // FOR TESTING
-        
         target_was_acquired = true;
     }
+    
     else // Could not get target's distance and velocity
     {
         if (target_was_acquired == true) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target..."); }
         target_was_acquired = false;
     }
 
-    // Printing stuff to the HUD:
-    // if (i%200 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Target speed bearing: %4.2f deg", target_speed_bearing); }
-    // average_time_between_updates_ms += g2.follow.get_time_between_updates_ms();
+    // Print Mavlink msg rate:
     uint32_t time_now_ms = AP_HAL::millis();
     if (runCount%400 == 0)
     {
