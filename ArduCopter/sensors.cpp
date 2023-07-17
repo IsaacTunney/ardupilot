@@ -32,10 +32,12 @@ void Copter::read_rangefinder(void)
     rangefinder.update();
 
 #if RANGEFINDER_TILT_CORRECTION == ENABLED
-    const float tilt_correction = MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
+    const float tilt_correction = MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z); // Max 45° compensation, otherwise it becomes too uncertain
 #else
     const float tilt_correction = 1.0f;
 #endif
+
+    // @TODO Add custom rangefinder angle relative to Copter's horizontal plane normal axis
 
     // iterate through downward and upward facing lidar
     struct {
