@@ -136,6 +136,22 @@ const AP_Param::Info Copter::var_info[] = {
     // @Range: 1 (use) or 0 (don't use)
     GSCALAR(land_use_rf, "LAND_USE_RNGFND", LAND_USE_RNGFND_DEFAULT),
 
+    // @Param: LAND_MNVR
+    // @DisplayName: Landing Manoeuver
+    // @Description: Landing manoeuver to execute while landing on a moving vehicle
+    // @User: Advanced
+    // @Units: No units
+    // @Range: NORMAL (0) or PITCH_TO_ZERO (1)
+    GSCALAR(land_mnvr, "LAND_MNVR", LAND_MNVR_DEFAULT),
+
+    // @Param: LAND_PTZ_HGT_M
+    // @DisplayName: Landing pitch-to-zero height
+    // @Description: Height above vehicle at which to execute the pitch-to-zero manoeuvrer
+    // @User: Advanced
+    // @Units: meters
+    // @Range: 0 to 1 meter
+    GSCALAR(land_ptz_hgt_m, "LAND_PTZ_HGT_M", LAND_PTZ_HGT_M_DEFAULT),   
+
 #if MODE_RTL_ENABLED == ENABLED
     // @Param: RTL_ALT
     // @DisplayName: RTL Altitude

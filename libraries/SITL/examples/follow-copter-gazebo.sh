@@ -18,8 +18,8 @@ COPTER=$ROOTDIR/build/sitl/bin/arducopter
 # Drones will be located here
 HOMELAT=-35.280252
 HOMELONG=149.005821
-# HOMELAT=45.378083 # Coordonnées 3it
-# HOMELONG=-71.942257 # Coordonnées 3it
+# HOMELAT=45.378083
+# HOMELONG=-71.942257
 HOMEALT=597.3
 
 
@@ -75,12 +75,12 @@ mkdir -p copter1
 cat <<EOF > copter1/leader.parm
 SYSID_THISMAV 1
 AUTO_OPTIONS 7
-WPNAV_SPEED 1500
+WPNAV_SPEED 500
 FOLL_ENABLE 0
 EOF
 
 pushd copter1
-$COPTER --model quad --home=$HOMELAT,$HOMELONG,$HOMEALT,0 --uartA udpclient:$GCS_IP --uartC mcast:$MCAST_IP_PORT --defaults $BASE_DEFAULTS,leader.parm &
+$COPTER --model JSON --home=$HOMELAT,$HOMELONG,$HOMEALT,0 --uartA udpclient:$GCS_IP --uartC mcast:$MCAST_IP_PORT --defaults $BASE_DEFAULTS,leader.parm &
 popd
 
 SYSID=2
@@ -92,7 +92,7 @@ cat <<EOF > copter2/follow.parm
 SYSID_THISMAV $SYSID
 FOLL_ENABLE 1
 FOLL_OFS_X -6
-FOLL_OFS_Z -10
+FOLL_OFS_Z -4
 FOLL_OFS_TYPE 1
 FOLL_SYSID 1
 FOLL_DIST_MAX 1000
@@ -102,14 +102,13 @@ FOLL_POS_D 0.0
 FOLL_ALT_TYPE 1
 FOLL_HD_ERR_D 90
 AUTO_OPTIONS 7
-LAND_SPEED 200
+LAND_SPEED 300
 LAND_TYPE 3
 LAND_RVT_PWM 1200
 LAND_MNVR 1
 LAND_PTZ_HGT_M 0.50
 FOLL_SPD_CMS 2500
 WPNAV_SPEED 2500
-ANGLE_MAX 5000
 EOF
 
 #=================================================================================================
@@ -118,7 +117,7 @@ EOF
 pushd copter2
 LAT=$(echo "$HOMELAT + 0.0005" | bc -l)
 LONG=$(echo "$HOMELONG + 0.0005" | bc -l)
-$COPTER --model quad --home=$LAT,$LONG,$HOMEALT,0 --uartA tcp:0 --uartC mcast:$MCAST_IP_PORT --instance 1 --defaults $BASE_DEFAULTS,follow.parm &
+$COPTER --model JSON --home=$LAT,$LONG,$HOMEALT,0 --uartA tcp:0 --uartC mcast:$MCAST_IP_PORT --instance 1 --defaults $BASE_DEFAULTS,follow.parm &
 popd
 
 #=================================================================================================

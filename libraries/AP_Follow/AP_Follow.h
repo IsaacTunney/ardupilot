@@ -22,6 +22,7 @@
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <AC_PID/AC_P.h>
 #include <AP_RTC/JitterCorrection.h>
+// #include <GCS_MAVLink/GCS.h>
 
 class AP_Follow
 {
@@ -76,10 +77,10 @@ public:
     bool have_target() const;
 
     // get target's estimated location and velocity (in NED)
-    bool get_target_location_and_velocity(Location &loc, Vector3f &vel_ned) const;
+    bool get_target_location_and_velocity(Location &loc, Vector3f &vel_ned); // const;
 
     // get target's estimated location and velocity (in NED), with offsets added
-    bool get_target_location_and_velocity_ofs(Location &loc, Vector3f &vel_ned) const;
+    bool get_target_location_and_velocity_ofs(Location &loc, Vector3f &vel_ned); // vonst;
     
     // get distance vector to target (in meters), target plus offsets, and target's velocity all in NED frame
     bool get_target_dist_and_vel_ned(Vector3f &dist_ned, Vector3f &dist_with_ofs, Vector3f &vel_ned);
@@ -130,6 +131,11 @@ private:
     // get velocity estimate in m/s in NED frame using dt since last update
     bool get_velocity_ned(Vector3f &vel_ned, float dt) const;
 
+    // get accel estimate in m/s/s in NED frame using previous target velocity
+    bool get_acceleration_ned(Vector3f &accel_ned, float dt) const;
+
+    void update_target_velocity_prev(Vector3f &vel_prev_ned, Vector3f &vel_ned);
+
     // initialise offsets to provided distance vector to other vehicle (in meters in NED frame) if required
     void init_offsets_if_required(const Vector3f &dist_vec_ned);
 
@@ -162,6 +168,9 @@ private:
     // local variables
     bool     _healthy;                 // true if we are receiving mavlink messages (regardless of whether they have target position info within them)
     uint32_t _last_location_update_ms; // system time of last position update
+    //
+    uint32_t _last_last_location_update_ms; // system time of second to last position update
+    //
     uint32_t _last_gps_update_ms;      // System time of last gps raw int update
     uint32_t _time_between_updates_ms; // To see at what rate mavlink messages are being updated
     uint32_t _time_since_last_update;
@@ -169,6 +178,7 @@ private:
     int      _num_of_msg_received;
     Location _target_location;         // last known location of target
     Vector3f _target_velocity_ned;     // last known velocity of target in NED frame in m/s
+    Vector3f _target_velocity_prev_ned;// last last know velocity of target in NED frame in m/s
     Vector3f _target_accel_ned;        // last known acceleration of target in NED frame in m/s/s
     uint32_t _last_heading_update_ms;  // system time of last heading update
     float _target_heading;             // heading in degrees

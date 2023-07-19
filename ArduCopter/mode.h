@@ -1605,8 +1605,9 @@ public:
     bool controlling_position() const { return control_position; }
     void set_land_pause(bool new_value) { land_pause = new_value; }
 
-        // Auto Pilot Modes enumeration
-    enum LandingType : int8_t {
+    // Auto Pilot Modes enumeration
+    enum LandingType : int8_t 
+    {
         ROOF    = 0,
         ICE     = 1,
         BOAT    = 2,
@@ -1641,11 +1642,12 @@ public:
         LANDING,
     } landingOnVehicle_state, landingOnVehicle_previousState;
 
-    enum state_landingManoeuver
+    enum state_landingManoeuver : int8_t
     {
-        NORMAL,
-        PITCH_TO_ZERO,
-    } landingManoeuver;
+        NORMAL = 0,
+        PITCH_TO_ZERO = 1,
+    };
+
 
 protected:
 

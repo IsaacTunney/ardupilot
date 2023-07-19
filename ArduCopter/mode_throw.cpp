@@ -5,7 +5,6 @@
 // Initialise land controller
 bool ModeThrow::init(bool ignore_checks)
 {
-
     // For now, do not use rangefinder when landing on vehicle
     if (g.land_use_rf == 1)
     {
@@ -60,7 +59,7 @@ bool ModeThrow::init(bool ignore_checks)
     auto_yaw.set_mode(AUTO_YAW_HOLD);   // initialize yaw
 
 #if AP_FENCE_ENABLED
-                                      // disable the fence on landing
+    // disable the fence on landing
     copter.fence.auto_disable_fence_for_landing();
 #endif
 
@@ -101,8 +100,6 @@ bool ModeThrow::init(bool ignore_checks)
         target_was_acquired = true;
         msg_target_reached_sent = false;
         time_last_ms = 0;
-
-        landingManoeuver = PITCH_TO_ZERO; // FOR NOW (SET AS PARAM EVENTUALLY)
 
         return ModeGuided::init(ignore_checks);
     }
@@ -293,10 +290,8 @@ void ModeThrow::landing_on_moving_vehicle_run()
             switchLandingState = false;
         }
 
-        if (landingManoeuver == PITCH_TO_ZERO)
+        if (g.land_mnvr == PITCH_TO_ZERO)
         {
-            // @TODO Add landing_manoeuver as a parameter
-            // @TODO Add pitch_to_zero height as a parameter
             follow_target_2D_pitch_to_zero();
         }
         else
@@ -372,9 +367,6 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
         const float kp = g2.follow.get_pos_p().kP();
         const float kd = g2.follow.get_pos_d();
 
-        // desired_velocity_ne_cms.x =  (vel_of_target.x * 100.0f) + (dist_vec_offs_ne.x * kp);
-        // desired_velocity_ne_cms.y =  (vel_of_target.y * 100.0f) + (dist_vec_offs_ne.y * kp);
-
         if (ahrs.get_velocity_NED(vel_of_follower)) // Ground speed, m/s
         {
             Vector3f vel_of_foll_neu_cms(vel_of_follower.x * 100.0f, vel_of_follower.y * 100.0f, -vel_of_follower.z * 100.0f);
@@ -401,6 +393,8 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
         target_heading = 0.0f;
         bool got_target_heading;
         got_target_heading = g2.follow.get_target_heading_deg(target_heading);
+        
+        // Calculate yaw command
         switch (g2.follow.get_yaw_behave())
         {
         case AP_Follow::YAW_BEHAVE_FACE_LEAD_VEHICLE:
@@ -429,7 +423,7 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
             // If we set YAW_BEHAVE_DIR_OF_FLIGHT but vehicle is not moving yet, use YAW_BEHAVE_SAME_AS_LEAD_VEHICLE instead
             // This way, drone already points in the right direction when vehicle starts moving
             // if (desired_velocity_neu_cms.xy().length() > (150.0))
-            if (vel_of_target.xy().length() > 200.0 && vel_of_follower.xy().length() > 200.0)
+            if (vel_of_target.xy().length() > 2.0 && vel_of_follower.xy().length() > 2.0)
             {
                 yaw_cd = get_bearing_cd(Vector2f{}, desired_velocity_ne_cms);
                 use_yaw = true;
@@ -462,7 +456,7 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
             allow_following = false; // Set flag to block the pursuit of the landing sequence after a bug
         }
 
-        // Check heading against target velocity heading (should match)
+        // Check copter's heading against target's velocity heading (should match)
         // Éventuellement, accorder un poids plus important à la direction du vecteur vitesse à mesure que sa magnitude augmente.
         if (safe_sqrt(sq(vel_of_target.x) + sq(vel_of_target.y)) >= 2.0) // Only calculate if speed is significant enough
         {
@@ -515,7 +509,7 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
     }
 
     // When desired height for pitch-to-zero is reached, switch to attitude control
-    if (dist_vec.z <= 0.50) // Positive axis is pointing down (in meters)
+    if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters)
     {
         if (runCount % 200 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "Doing Pitch-to-zero manoeuver"); }
         attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
@@ -576,14 +570,14 @@ void ModeThrow::follow_target_3D()
         if (ahrs.get_velocity_NED(vel_of_follower)) // Ground velocity of follower, m/s
         {
             Vector3f vel_of_foll_neu_cms(vel_of_follower.x * 100.0f, vel_of_follower.y * 100.0f, -vel_of_follower.z * 100.0f);
-            desired_velocity_neu_cms.x = (vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp) - ((vel_of_foll_neu_cms.x - vel_of_target.x * 100) * kd);
-            desired_velocity_neu_cms.y = (vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp) - ((vel_of_foll_neu_cms.y - vel_of_target.y * 100) * kd);
+            desired_velocity_neu_cms.x = ( vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp) - ((vel_of_foll_neu_cms.x - vel_of_target.x * 100) * kd);
+            desired_velocity_neu_cms.y = ( vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp) - ((vel_of_foll_neu_cms.y - vel_of_target.y * 100) * kd);
             desired_velocity_neu_cms.z = (-vel_of_target.z * 100.0f) + (dist_vec_offs_neu.z * kp);
         }
         else
         {
-            desired_velocity_neu_cms.x = (vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp);
-            desired_velocity_neu_cms.y = (vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp);
+            desired_velocity_neu_cms.x = ( vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp);
+            desired_velocity_neu_cms.y = ( vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp);
             desired_velocity_neu_cms.z = (-vel_of_target.z * 100.0f) + (dist_vec_offs_neu.z * kp);
         }
 
@@ -654,7 +648,7 @@ void ModeThrow::follow_target_3D()
             // If we set YAW_BEHAVE_DIR_OF_FLIGHT but vehicle is not moving yet, use YAW_BEHAVE_SAME_AS_LEAD_VEHICLE instead
             // This way, drone already points in the right direction when vehicle starts moving
             // if (desired_velocity_neu_cms.xy().length() > (150.0))
-            if (vel_of_target.xy().length() > 200.0 && vel_of_follower.xy().length() > 200.0)
+            if (vel_of_target.xy().length() > 2.0 && vel_of_follower.xy().length() > 2.0)
             {
                 yaw_cd = get_bearing_cd(Vector2f{}, desired_velocity_neu_cms.xy());
                 use_yaw = true;
@@ -833,7 +827,7 @@ void ModeThrow::follow_target_2D()
             // If we set YAW_BEHAVE_DIR_OF_FLIGHT but vehicle is not moving yet, use YAW_BEHAVE_SAME_AS_LEAD_VEHICLE instead
             // This way, drone already points in the right direction when vehicle starts moving
             // if (desired_velocity_neu_cms.xy().length() > (150.0))
-            if (vel_of_target.xy().length() > 200.0 && vel_of_follower.xy().length() > 200.0)
+            if (vel_of_target.xy().length() > 2.0 && vel_of_follower.xy().length() > 2.0)
             {
                 yaw_cd = get_bearing_cd(Vector2f{}, desired_velocity_ne_cms);
                 use_yaw = true;

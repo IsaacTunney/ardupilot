@@ -143,9 +143,16 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     FAST_TASK(Log_Video_Stabilisation),
 
+    // // Uncomment for target
+    // SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_send,    400, 550, 2),
+
     SCHED_TASK(rc_loop,              250,    130,  3),
     SCHED_TASK(throttle_loop,         50,     75,  6),
     SCHED_TASK_CLASS(AP_GPS,               &copter.gps,                 update,          50, 200,   9),
+
+    // Uncomment for follower (Copter). Swtiched from 400 to 100Hz
+    SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_receive, 100, 180, 10),
+
 #if AP_OPTICALFLOW_ENABLED
     SCHED_TASK_CLASS(AP_OpticalFlow,          &copter.optflow,             update,         200, 160,  12),
 #endif
@@ -198,8 +205,11 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK(standby_update,        100,    75,  96),
     SCHED_TASK(lost_vehicle_check,    10,     50,  99),
-    SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_receive, 400, 180, 102),
+
+    // Comment and uncomment depending on target or follower (see above which functions are used)
+    // SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_receive, 400, 180, 102),
     SCHED_TASK_CLASS(GCS,                  (GCS*)&copter._gcs,          update_send,    400, 550, 105),
+
 #if HAL_MOUNT_ENABLED
     SCHED_TASK_CLASS(AP_Mount,             &copter.camera_mount,        update,          50,  75, 108),
 #endif

@@ -172,7 +172,7 @@ void ModeFollow::run()
                 // If we set YAW_BEHAVE_DIR_OF_FLIGHT but vehicle is not moving yet, use YAW_BEHAVE_SAME_AS_LEAD_VEHICLE instead
                 // This way, drone already points in the right direction when vehicle starts moving
                 // if (desired_velocity_neu_cms.xy().length() > (150.0))
-                if (vel_of_target.xy().length() > 200.0 && vel_of_follower.xy().length() > 200.0 )
+                if (vel_of_target.xy().length() > 2.0 && vel_of_follower.xy().length() > 2.0 )
                 {
                     yaw_cd = get_bearing_cd(Vector2f{}, desired_velocity_neu_cms.xy());
                     use_yaw = true;

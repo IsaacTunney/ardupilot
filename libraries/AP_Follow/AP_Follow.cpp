@@ -20,6 +20,7 @@
 
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Logger/AP_Logger.h>
+// #include <GCS_MAVLink/GCS.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -34,7 +35,7 @@ extern const AP_HAL::HAL& hal;
 #define AP_FOLLOW_POS_P_DEFAULT 0.1f    // position error default gain P
 #define AP_FOLLOW_POS_D_DEFAULT 0.001f  // position error default gain D
 
-#define AP_FOLLOW_MAX_SPEED 1250        // Max speed allowed for following, in cm/s (=45 km/h)
+#define AP_FOLLOW_MAX_SPEED 1250        // Default max speed allowed for following, in cm/s (=45 km/h)
 
 #if APM_BUILD_TYPE(APM_BUILD_ArduPlane)
 #define AP_FOLLOW_ALT_TYPE_DEFAULT 0
@@ -191,7 +192,7 @@ void AP_Follow::clear_offsets_if_required()
 }
 
 // get target's estimated location
-bool AP_Follow::get_target_location_and_velocity(Location &loc, Vector3f &vel_ned) const
+bool AP_Follow::get_target_location_and_velocity(Location &loc, Vector3f &vel_ned) 
 {
     // exit immediately if not enabled
     if (!_enabled) {
@@ -206,24 +207,37 @@ bool AP_Follow::get_target_location_and_velocity(Location &loc, Vector3f &vel_ne
     // calculate time since last actual position update
     const float dt = (AP_HAL::millis() - _last_location_update_ms) * 0.001f;
 
-    // get velocity estimate
+    // Estimate acceleration (based on last and second to last velocities)
+    float dt_accel = (_last_location_update_ms - _last_last_location_update_ms) * 0.001f; // sec
+    get_acceleration_ned(_target_accel_ned, dt_accel);
+
+    // @TODO Add message to test dt_accel (makes sense??)
+
+    // get target's velocity estimate using time since last update
     if (!get_velocity_ned(vel_ned, dt)) {
         return false;
     }
 
-    // project the vehicle position
+    // Project the current target position based on the last received target position
     Location last_loc = _target_location;
     last_loc.offset(vel_ned.x * dt, vel_ned.y * dt);
     last_loc.alt -= vel_ned.z * 100.0f * dt; // convert m/s to cm/s, multiply by dt.  minus because NED
 
     // Add offset caused by GPS delay (time it takes for the GPS on the target to make it's correction with
-    // the RTK (processing time), then sends it to the target pixhawk's EKF to estimate the true positon,
+    // the RTK (processing time), then sends it to the target pixhawk's EKF to estimate the true position,
     // and then send it through 1 telemetry link to the drone follower.
     last_loc.offset(vel_ned.x * _gps_delay/1000, vel_ned.y * _gps_delay/1000);
 
     // return latest position estimate
     loc = last_loc;
+
+    // Update previous target's velocity
+    // update_target_velocity_prev(_target_velocity_prev_ned, _target_velocity_ned);
+    _target_velocity_prev_ned = _target_velocity_ned;
+    _last_last_location_update_ms = _last_location_update_ms;
+
     return true;
+    
 }
 
 // get distance vector to target (in meters) and target's velocity all in NED frame
@@ -302,7 +316,7 @@ bool AP_Follow::get_target_heading_deg(float &heading) const
     return true;
 }
 
-// handle mavlink DISTANCE_SENSOR messages
+// handle mavlink messages
 void AP_Follow::handle_msg(const mavlink_message_t &msg)
 {
     // exit immediately if not enabled
@@ -385,6 +399,8 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
             
             break;
         }
+            // @TODO Use target acceleration to add feedforward to the control algorithm
+
         // case MAVLINK_MSG_ID_FOLLOW_TARGET:
         // {
         //     // decode message
@@ -443,10 +459,9 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
         _time_since_last_update = tnow;
         _num_of_msg_received += 1;
     }
-    // _updated_last = updated;
-    ///////////////////
     
-    if (mavlink_msg_updated) {
+    if (mavlink_msg_updated)
+    {
         // get estimated location and velocity
         Location loc_estimate{};
         Vector3f vel_estimate;
@@ -456,26 +471,24 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
         // float target_speed_bearing;
         UNUSED_RESULT(get_target_location_and_velocity(loc_estimate, vel_estimate));
         UNUSED_RESULT(get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target));
-        // if ( sqrt( sq(vel_of_target.x) + sq(vel_of_target.y) ) >= 2.0 ) { target_speed_bearing = get_bearing_cd(Vector2f{}, vel_of_target.xy())/100; } // 0 to 360 deg
-        // else { target_speed_bearing = -1.0; }
 
         // Log lead's estimated vs reported position
-// @LoggerMessage: FOLL
-// @Description: Follow library diagnostic data
-// @Field: Tus: Time since system startup
-// @Field: Lat: Target latitude
-// @Field: Lon: Target longitude
-// @Field: Alt: Target absolute altitude
-// @Field: VelN: Target earth-frame velocity, North
-// @Field: VelE: Target earth-frame velocity, East
-// @Field: VelD: Target earth-frame velocity, Down
-// @Field: LatE: Vehicle latitude
-// @Field: LonE: Vehicle longitude
-// @Field: AltE: Vehicle absolute altitude
-// @Field: DN: Distance vector with offset, North
-// @Field: DE: Distance vector with offset, East
-// @Field: DD: Distance vector with offset, Down
-// @Field: THD: Target's heading, 0° (north) to 359° clockwise
+        // @LoggerMessage: FOLL
+        // @Description: Follow library diagnostic data
+        // @Field: Tus: Time since system startup
+        // @Field: Lat: Target latitude
+        // @Field: Lon: Target longitude
+        // @Field: Alt: Target absolute altitude
+        // @Field: VelN: Target earth-frame velocity, North
+        // @Field: VelE: Target earth-frame velocity, East
+        // @Field: VelD: Target earth-frame velocity, Down
+        // @Field: LatE: Vehicle latitude
+        // @Field: LonE: Vehicle longitude
+        // @Field: AltE: Vehicle absolute altitude
+        // @Field: DN: Distance vector with offset, North
+        // @Field: DE: Distance vector with offset, East
+        // @Field: DD: Distance vector with offset, Down
+        // @Field: THD: Target's heading, 0° (north) to 359° clockwise
         AP::logger().WriteStreaming("FOLL",
                                                "TimeUS,Lat,Lon,Alt,VelN,VelE,VelD,LatE,LonE,AltE,DN,DE,DD",  // labels
                                                "sDUmnnnDUmmmm",    // units
@@ -495,8 +508,7 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
                                                (double)dist_vec_offs.y,
                                                (double)dist_vec_offs.z
                                                //(double)_target_heading
-                                                // (double)target_speed_bearing
-// Avec ces infos, devrait être capable de voir comportement PID à différentes vitesses
+                                               // (double)target_speed_bearing
                                                );
     }
 }
@@ -505,7 +517,24 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 bool AP_Follow::get_velocity_ned(Vector3f &vel_ned, float dt) const
 {
     vel_ned = _target_velocity_ned + (_target_accel_ned * dt);
+    // gcs().send_text(MAV_SEVERITY_INFO, "Accel: %4.3f m/s/s", _target_accel_ned.length());
     return true;
+}
+
+// get accel estimate in m/s/s in NED frame using previous target velocity
+bool AP_Follow::get_acceleration_ned(Vector3f &accel_ned, float dt) const
+{
+    if (dt >= 0.0001)
+    {
+        accel_ned = (_target_velocity_ned - _target_velocity_prev_ned) / dt;
+        return true;
+    }
+    return false;
+}
+
+void AP_Follow::update_target_velocity_prev(Vector3f &vel_prev_ned, Vector3f &vel_ned)
+{
+    vel_prev_ned = vel_ned;
 }
 
 // initialise offsets to provided distance vector to other vehicle (in meters in NED frame) if required
@@ -609,7 +638,7 @@ void AP_Follow::clear_dist_and_bearing_to_target()
 }
 
 // get target's estimated location and velocity (in NED), with offsets added
-bool AP_Follow::get_target_location_and_velocity_ofs(Location &loc, Vector3f &vel_ned) const
+bool AP_Follow::get_target_location_and_velocity_ofs(Location &loc, Vector3f &vel_ned)
 {
     Vector3f ofs;
     if (!get_offsets_ned(ofs) ||

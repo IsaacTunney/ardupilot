@@ -615,6 +615,14 @@
 #ifndef LAND_USE_RNGFND_DEFAULT
  # define LAND_USE_RNGFND_DEFAULT  1  // default value for using rangefinder during landing sequence
 #endif
+
+#ifndef LAND_MNVR_DEFAULT
+ # define LAND_MNVR_DEFAULT  0  // default value for landing manoeuver for landing on moving vehicle
+#endif
+
+#ifndef LAND_PTZ_HGT_M_DEFAULT
+ # define LAND_PTZ_HGT_M_DEFAULT  0.50  // default value for pitch-to-zero height above vehicle
+#endif
 //////////////////////////////////////////////////////////////////////////////
 
 
