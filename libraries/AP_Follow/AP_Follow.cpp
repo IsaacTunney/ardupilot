@@ -516,7 +516,8 @@ void AP_Follow::handle_msg(const mavlink_message_t &msg)
 // get velocity estimate in m/s in NED frame using dt since last update
 bool AP_Follow::get_velocity_ned(Vector3f &vel_ned, float dt) const
 {
-    vel_ned = _target_velocity_ned + (_target_accel_ned * dt);
+    // @TODO Re-enable the use of target_accel_ned
+    vel_ned = _target_velocity_ned ; //+ (_target_accel_ned * dt);
     // gcs().send_text(MAV_SEVERITY_INFO, "Accel: %4.3f m/s/s", _target_accel_ned.length());
     return true;
 }

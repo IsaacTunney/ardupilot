@@ -36,7 +36,6 @@ bool ModeThrow::init(bool ignore_checks)
         pos_control->init_z_controller();
     }
 
-    target_was_acquired = false;
     state = INIT;
     landingOnVehicle_state = FOLLOWING;
     landingOnVehicle_previousState = FOLLOWING;
@@ -72,6 +71,14 @@ bool ModeThrow::init(bool ignore_checks)
     gcs().send_text(MAV_SEVERITY_WARNING, "Rangefinder not enabled!"); // Set in the ardupilot code directly, NOT in parameters
 #endif
 
+    // Make sure wpnav_speed_dn is higher or equal to land_speed, otherwise there will be accel Z spike when vel_desired > wpnav_speed_dn
+    float wpnav_speed_dn = wp_nav->get_default_speed_down();
+    if (g.land_speed > wpnav_speed_dn)
+    {
+        gcs().send_text(MAV_SEVERITY_ALERT, "EXITING: Land speed (%4.2f cm/s) is higher than wpnav speed dn (%4.2f cm/s)", double(g.land_speed), wpnav_speed_dn);
+        return false;
+    }
+    
     if (g.land_type == VEHICLE)
     {
         if (!g2.follow.enabled())
@@ -100,6 +107,7 @@ bool ModeThrow::init(bool ignore_checks)
         target_was_acquired = true;
         msg_target_reached_sent = false;
         time_last_ms = 0;
+        sentPitchToZeroMsgOnce = false;
 
         return ModeGuided::init(ignore_checks);
     }
@@ -358,10 +366,10 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
         // Convert dist_vec_offs to cm in NE:
         const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
 
-        if (runCount % 200 == 0)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "Dist from landing target: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs.x, dist_vec_offs.y, dist_vec.z);
-        }
+        // if (runCount % 200 == 0)
+        // {
+        //     gcs().send_text(MAV_SEVERITY_INFO, "Dist from landing target: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs.x, dist_vec_offs.y, dist_vec.z);
+        // }
 
         // Position controller: PD controller with Feedforward
         const float kp = g2.follow.get_pos_p().kP();
@@ -489,15 +497,15 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
         target_was_acquired = false;
     }
 
-    // Print Mavlink msg rate:
-    uint32_t time_now_ms = AP_HAL::millis();
-    if (runCount % 400 == 0)
-    {
-        uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
-        gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
-        g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
-        time_last_ms = time_now_ms;
-    }
+    // // Print Mavlink msg rate:
+    // uint32_t time_now_ms = AP_HAL::millis();
+    // if (runCount % 400 == 0)
+    // {
+    //     uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
+    //     gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
+    //     g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
+    //     time_last_ms = time_now_ms;
+    // }
 
     // Log output at 10hz:
     uint32_t now = AP_HAL::millis();
@@ -511,7 +519,12 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
     // When desired height for pitch-to-zero is reached, switch to attitude control
     if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters)
     {
-        if (runCount % 200 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "Doing Pitch-to-zero manoeuver"); }
+        if (sentPitchToZeroMsgOnce==false)
+        {
+            gcs().send_text(MAV_SEVERITY_INFO, "Doing Pitch-to-zero manoeuver");
+            gcs().send_text(MAV_SEVERITY_INFO, "Height above target: %4.2f m", dist_vec.z);
+            sentPitchToZeroMsgOnce = true;
+        }
         attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
     }
     // Otherwise, use Guided mode for position control in 2D
@@ -556,9 +569,9 @@ void ModeThrow::follow_target_3D()
 
         horizontal_dist_from_target_with_offset_cm = dist_vec_offs_neu.xy(); // cm
 
-        if (runCount % 200 == 0)
+        if (runCount % 500 == 0)
         {
-            gcs().send_text(MAV_SEVERITY_INFO, "Dist from virtual target: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs.x, dist_vec_offs.y, dist_vec_offs.z);
+            gcs().send_text(MAV_SEVERITY_INFO, "Dist from v-target: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs.x, dist_vec_offs.y, dist_vec_offs.z);
         }
 
         // Calculate desired velocity vector in cm/s in NEU:
@@ -580,6 +593,12 @@ void ModeThrow::follow_target_3D()
             desired_velocity_neu_cms.y = ( vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp);
             desired_velocity_neu_cms.z = (-vel_of_target.z * 100.0f) + (dist_vec_offs_neu.z * kp);
         }
+
+        // // Add compensation for when follower accelerates downwards, which results in a velocity loss
+        // Vector3f accel_of_follower = ahrs.get_accel();
+        // float kp_accel = 0.1;
+        // desired_velocity_neu_cms.x = desired_velocity_neu_cms.x + accel_of_follower.z * kp_accel;
+        // desired_velocity_neu_cms.y = desired_velocity_neu_cms.y + accel_of_follower.z * kp_accel;
 
         // Scale desired velocity to stay within horizontal speed limit:
         float desired_speed_xy = safe_sqrt(sq(desired_velocity_neu_cms.x) + sq(desired_velocity_neu_cms.y));
@@ -711,15 +730,15 @@ void ModeThrow::follow_target_3D()
         target_was_acquired = false;
     }
 
-    // Print Mavlink msg rate:
-    uint32_t time_now_ms = AP_HAL::millis();
-    if (runCount % 400 == 0)
-    {
-        uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
-        gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
-        g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
-        time_last_ms = time_now_ms;
-    }
+    // // Print Mavlink msg rate:
+    // uint32_t time_now_ms = AP_HAL::millis();
+    // if (runCount % 400 == 0)
+    // {
+    //     uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
+    //     gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
+    //     g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
+    //     time_last_ms = time_now_ms;
+    // }
 
     // Log output at 10hz:
     uint32_t now = AP_HAL::millis();
@@ -761,7 +780,7 @@ void ModeThrow::follow_target_2D()
         // Convert dist_vec_offs to cm in NE:
         const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
 
-        if (runCount % 200 == 0)
+        if (runCount % 500 == 0)
         {
             gcs().send_text(MAV_SEVERITY_INFO, "Dist from landing target: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs.x, dist_vec_offs.y, dist_vec.z);
         }
@@ -893,15 +912,15 @@ void ModeThrow::follow_target_2D()
         target_was_acquired = false;
     }
 
-    // Print Mavlink msg rate:
-    uint32_t time_now_ms = AP_HAL::millis();
-    if (runCount % 400 == 0)
-    {
-        uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
-        gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
-        g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
-        time_last_ms = time_now_ms;
-    }
+    // // Print Mavlink msg rate:
+    // uint32_t time_now_ms = AP_HAL::millis();
+    // if (runCount % 400 == 0)
+    // {
+    //     uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
+    //     gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
+    //     g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
+    //     time_last_ms = time_now_ms;
+    // }
 
     // Log output at 10hz:
     uint32_t now = AP_HAL::millis();

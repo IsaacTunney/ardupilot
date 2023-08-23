@@ -50,7 +50,7 @@ if [ "$(expr substr $unameOut 1 5)" == "Linux" ]; then
 
     # Native Linux
     else
-        MCAST_IP_PORT="" # Use default IP, port
+        MCAST_IP_PORT="" # Use default IP port
     fi
 
 elif [ "$(expr substr $unameOut 1 6)" == "CYGWIN" ]; then
@@ -75,8 +75,11 @@ mkdir -p copter1
 cat <<EOF > copter1/leader.parm
 SYSID_THISMAV 1
 AUTO_OPTIONS 7
-WPNAV_SPEED 1500
+WPNAV_SPEED 2500
+LOIT_SPEED 2500
 FOLL_ENABLE 0
+EK3_DRAG_BCOEF_X 100
+EK3_DRAG_BCOEF_Y 100
 EOF
 
 pushd copter1
@@ -90,9 +93,11 @@ mkdir -p copter$SYSID
 # create default parameter file for the follower
 cat <<EOF > copter2/follow.parm
 SYSID_THISMAV $SYSID
+AUTO_OPTIONS 7
 FOLL_ENABLE 1
+FOLL_DELAY 80
 FOLL_OFS_X -6
-FOLL_OFS_Z -10
+FOLL_OFS_Z -6
 FOLL_OFS_TYPE 1
 FOLL_SYSID 1
 FOLL_DIST_MAX 1000
@@ -101,23 +106,26 @@ FOLL_POS_P 0.3
 FOLL_POS_D 0.0
 FOLL_ALT_TYPE 1
 FOLL_HD_ERR_D 90
-AUTO_OPTIONS 7
-LAND_SPEED 200
+FOLL_SPD_CMS 2500
+LAND_SPEED 300
 LAND_TYPE 3
 LAND_RVT_PWM 1200
 LAND_MNVR 1
 LAND_PTZ_HGT_M 0.50
-FOLL_SPD_CMS 2500
+LAND_USE_RNGFND 0
 WPNAV_SPEED 2500
+LOIT_SPEED 2500
 ANGLE_MAX 5000
+EK3_DRAG_BCOEF_X 100
+EK3_DRAG_BCOEF_Y 100
 EOF
 
 #=================================================================================================
 # FOR A SINGLE FOLLOWER:
 #=================================================================================================
 pushd copter2
-LAT=$(echo "$HOMELAT + 0.0005" | bc -l)
-LONG=$(echo "$HOMELONG + 0.0005" | bc -l)
+LAT=$(echo "$HOMELAT - 0.0010" | bc -l)
+LONG=$(echo "$HOMELONG" | bc -l)
 $COPTER --model quad --home=$LAT,$LONG,$HOMEALT,0 --uartA tcp:0 --uartC mcast:$MCAST_IP_PORT --instance 1 --defaults $BASE_DEFAULTS,follow.parm &
 popd
 
@@ -161,6 +169,9 @@ popd
 #     $COPTER --model quad --home=$LAT,$LONG,$HOMEALT,0 --uartA tcp:0 --uartC mcast:$MCAST_IP_PORT --instance $i --defaults $BASE_DEFAULTS,follow.parm &
 #     popd
 # done
+
+echo "Starting MAVProxy!"
+gnome-terminal -- bash -c 'mavproxy.py --master=mcast: --console --map --load-module horizon;'
 
 wait
 

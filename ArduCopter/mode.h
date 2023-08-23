@@ -1726,6 +1726,8 @@ private:
     float    target_speed_bearing;
     uint64_t time_last_ms;
 
+    bool sentPitchToZeroMsgOnce;
+
 };
 
 //###############################################################

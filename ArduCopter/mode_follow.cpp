@@ -43,6 +43,14 @@ bool ModeFollow::init(const bool ignore_checks)
     runCount                = 0;
     time_last_ms            = 0;
 
+    // Make sure wpnav_speed_dn is higher than land_speed, otherwise there will be accel Z spike when vel_desired > wpnav_speed_dn
+    float wpnav_speed_dn = wp_nav->get_default_speed_down();
+    if (g.land_speed > wpnav_speed_dn)
+    {
+        gcs().send_text(MAV_SEVERITY_ALERT, "ALERT: Land speed (%4.2f cm/s) is higher than wpnav speed dn (%4.2f cm/s)", double(g.land_speed), wpnav_speed_dn);
+    }
+
+
     // Re-use guided mode's initialization
     return ModeGuided::init(ignore_checks);
 }
@@ -75,10 +83,11 @@ void ModeFollow::run()
         // Convert dist_vec_offs to cm in NEU
         const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
 
-        if (runCount%200 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Dist from target: x:%4.3f m; y:%4.3f m", dist_vec_offs.x, dist_vec_offs.y); }
+        if (runCount%500 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "Dist from v-target: x:%4.3f m; y:%4.3f m", dist_vec_offs.x, dist_vec_offs.y); }
         if (abs(dist_vec_offs_neu.x) <= 50.0 && abs(dist_vec_offs_neu.y) <= 50.0 && msg_target_reached_sent == false) 
         {
             gcs().send_text(MAV_SEVERITY_CRITICAL, "TARGET REACHED!");
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "x:%4.3f m; y:%4.3f m", dist_vec_offs.x, dist_vec_offs.y);
             msg_target_reached_sent = true;
         }
         
@@ -235,15 +244,15 @@ void ModeFollow::run()
         target_was_acquired = false;
     }
 
-    // Print Mavlink msg rate:
-    uint32_t time_now_ms = AP_HAL::millis();
-    if (runCount%400 == 0)
-    {
-        uint32_t avg_time_ms = (time_now_ms-time_last_ms) / g2.follow.get_num_of_msg_received();
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %3f Hz", (double)1000/avg_time_ms );
-        g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
-        time_last_ms = time_now_ms;
-    }
+    // // Print Mavlink msg rate:
+    // uint32_t time_now_ms = AP_HAL::millis();
+    // if (runCount%400 == 0)
+    // {
+    //     uint32_t avg_time_ms = (time_now_ms-time_last_ms) / g2.follow.get_num_of_msg_received();
+    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Target msgs updates freq: %3f Hz", (double)1000/avg_time_ms );
+    //     g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
+    //     time_last_ms = time_now_ms;
+    // }
 
     // Log output at 10hz for ModeGuided commands
     // Note: Logs specific to ModeFollow are in AP_Follow library

@@ -7,6 +7,11 @@
 # If you can't use multicast, you can connect via UDP on vehicle 1, which will relay telemetry
 # from the other vehicles
 
+# Start gazebo right away
+echo "Starting Gazebo!"
+gz sim -r iris_runway_2_drones.sdf &
+sleep 3
+
 # Kill all SITL binaries when exiting
 trap "killall -9 arducopter" SIGINT SIGTERM EXIT
 
@@ -21,7 +26,6 @@ HOMELONG=149.005821
 # HOMELAT=45.378083
 # HOMELONG=-71.942257
 HOMEALT=597.3
-
 
 # Set GCS_IP address
 if [ -z $1 ]; then
@@ -109,14 +113,15 @@ LAND_MNVR 1
 LAND_PTZ_HGT_M 0.50
 FOLL_SPD_CMS 2500
 WPNAV_SPEED 2500
+ANGLE_MAX 5000
 EOF
 
 #=================================================================================================
 # FOR A SINGLE FOLLOWER:
 #=================================================================================================
 pushd copter2
-LAT=$(echo "$HOMELAT + 0.0005" | bc -l)
-LONG=$(echo "$HOMELONG + 0.0005" | bc -l)
+LAT=$(echo "$HOMELAT - 0.0005" | bc -l)
+LONG=$(echo "$HOMELONG" | bc -l)
 $COPTER --model JSON --home=$LAT,$LONG,$HOMEALT,0 --uartA tcp:0 --uartC mcast:$MCAST_IP_PORT --instance 1 --defaults $BASE_DEFAULTS,follow.parm &
 popd
 
@@ -160,6 +165,22 @@ popd
 #     $COPTER --model quad --home=$LAT,$LONG,$HOMEALT,0 --uartA tcp:0 --uartC mcast:$MCAST_IP_PORT --instance $i --defaults $BASE_DEFAULTS,follow.parm &
 #     popd
 # done
+
+
+# gnome-terminal -- /bin/sh -c 'echo "Starting Gazebo!"; gz sim -r iris_runway_2_drones.sdf'
+# sleep 3
+# echo "Starting Mavproxy!"
+# mavproxy.py --master=mcast: --console --map --load-module horizon
+
+# gnome-terminal -- /bin/sh -c 'echo "Starting Mavproxy!";
+# mavproxy.py --master=mcast: --console --map --load-module horizon;
+# echo "vehicle 1";
+# echo "mode guided";
+# echo "vehicle 2";
+# echo "mode guided";'
+
+echo "Starting MAVProxy!"
+gnome-terminal -- bash -c 'mavproxy.py --master=mcast: --console --map --load-module horizon;'
 
 wait
 
