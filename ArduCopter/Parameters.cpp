@@ -150,8 +150,16 @@ const AP_Param::Info Copter::var_info[] = {
     // @User: Advanced
     // @Units: meters
     // @Range: 0 to 1 meter
-    GSCALAR(land_ptz_hgt_m, "LAND_PTZ_HGT_M", LAND_PTZ_HGT_M_DEFAULT),   
+    GSCALAR(land_ptz_hgt_m, "LAND_PTZ_HGT_M", LAND_PTZ_HGT_M_DEFAULT),
 
+    // @Param: LAND_TRGT_RNG_CM
+    // @DisplayName: Landing target range, in cm
+    // @Description: Put the range, in cm, at which the vehicle is considered to have reached its goal and can proceed to landing
+    // @User: Advanced
+    // @Units: cm
+    // @Range: 0 to 200
+    GSCALAR(land_trgt_rng_cm, "LAND_TRGT_RNG_CM", LAND_TRGT_RNG_CM_DEFAULT),
+    
 #if MODE_RTL_ENABLED == ENABLED
     // @Param: RTL_ALT
     // @DisplayName: RTL Altitude

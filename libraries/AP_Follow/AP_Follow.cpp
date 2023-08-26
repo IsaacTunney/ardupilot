@@ -34,6 +34,7 @@ extern const AP_HAL::HAL& hal;
 
 #define AP_FOLLOW_POS_P_DEFAULT 0.1f    // position error default gain P
 #define AP_FOLLOW_POS_D_DEFAULT 0.001f  // position error default gain D
+#define AP_FOLLOW_POS_P_100_DEFAULT 0.35 // position error default gain P at 100 km/h (for interpolation)
 
 #define AP_FOLLOW_MAX_SPEED 1250        // Default max speed allowed for following, in cm/s (=45 km/h)
 
@@ -166,6 +167,13 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @Values: 
     // @User: Standard
     AP_GROUPINFO("_DELAY", 16, AP_Follow, _gps_delay, 160),
+
+    // @Param: _POS_P_100
+    // @DisplayName: P gain (at 100 km/h) for follow mode position controller
+    // @Description: It is used to interpolate the Position P gain from 0 to 100 km/h, so that the gain increases with speed
+    // @Values: 
+    // @User: Standard
+    AP_GROUPINFO("_POS_P_100", 17, AP_Follow, _p_pos_100, AP_FOLLOW_POS_P_100_DEFAULT),
 
     AP_GROUPEND
 };

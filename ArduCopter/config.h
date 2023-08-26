@@ -623,6 +623,10 @@
 #ifndef LAND_PTZ_HGT_M_DEFAULT
  # define LAND_PTZ_HGT_M_DEFAULT  0.50  // default value for pitch-to-zero height above vehicle
 #endif
+
+#ifndef LAND_TRGT_RNG_CM_DEFAULT
+ # define LAND_TRGT_RNG_CM_DEFAULT  50  // default value for the range around the target point where we consider it "reached"
+#endif
 //////////////////////////////////////////////////////////////////////////////
 
 

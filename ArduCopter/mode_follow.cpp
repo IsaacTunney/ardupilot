@@ -92,7 +92,26 @@ void ModeFollow::run()
         }
         
         // Calculate desired velocity vector in cm/s in NEU
-        const float kp = g2.follow.get_pos_p().kP();
+        // Interpolate between kp and kp_100kmph to get the desired gain, based on vehicle speed.
+        
+        // const float kp = g2.follow.get_pos_p().kP();
+        float kp;
+        float kp_static = g2.follow.get_pos_p().kP();
+        float kp_100kmph  = g2.follow.get_pos_p_100kmph();
+
+        if (vel_of_target.xy().length() <= 0.1) //m/s
+        {
+            kp = kp_static;
+        }
+        else if ((vel_of_target.xy().length() ) >= 100/3.6) //m/s
+        {
+            kp = kp_100kmph;
+        }
+        else // If in-between 0 and 100 km/h, interpolate
+        {
+            kp = (kp_100kmph - kp_static) * (vel_of_target.xy().length()) / (100/3.6) + kp_static;
+        }
+        
         const float kd = g2.follow.get_pos_d();
         
         // // Position controller: P controller with Feedforward

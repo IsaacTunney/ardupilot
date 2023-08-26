@@ -65,6 +65,8 @@ public:
     AP_Int8 get_heading_err_deg() { return _hd_err_d; }
 
     AP_Float get_pos_d() { return _d_pos; }
+
+    AP_Float get_pos_p_100kmph() {return _p_pos_100; }
     
     // restore offsets to zero if necessary, should be called when vehicle exits follow mode
     void clear_offsets_if_required();
@@ -161,6 +163,7 @@ private:
     AP_Int16    _spd_cms;           // Max speed in Follow mode
     AP_Int8     _hd_err_d;          // Target's heading error relative to it's velocity vector, degrees
     AP_Float    _d_pos;             // D gain for mode Follow controller
+    AP_Float    _p_pos_100;         // P gain at 100 km/h, used to interpolate follow pos P gain and increase gain as we increase speed.
 
     // Out of group parameters
     AP_Int16    _gps_delay;         // GPS delay to be manually set by user

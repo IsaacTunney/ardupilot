@@ -372,7 +372,25 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
         // }
 
         // Position controller: PD controller with Feedforward
-        const float kp = g2.follow.get_pos_p().kP();
+        // const float kp = g2.follow.get_pos_p().kP();
+        float kp;
+        float kp_static = g2.follow.get_pos_p().kP();
+        float kp_100kmph  = g2.follow.get_pos_p_100kmph();
+
+        if (vel_of_target.xy().length() <= 0.1) //m/s
+        {
+            kp = kp_static;
+        }
+        else if ((vel_of_target.xy().length() ) >= 100/3.6) //m/s
+        {
+            kp = kp_100kmph;
+        }
+        else // If in-between 0 and 100 km/h, interpolate
+        {
+            kp = (kp_100kmph - kp_static) * (vel_of_target.xy().length()) / (100/3.6) + kp_static;
+        }
+        // gcs().send_text(MAV_SEVERITY_CRITICAL, "Gain kp: %4.2f.", kp);
+
         const float kd = g2.follow.get_pos_d();
 
         if (ahrs.get_velocity_NED(vel_of_follower)) // Ground speed, m/s
@@ -575,7 +593,25 @@ void ModeThrow::follow_target_3D()
         }
 
         // Calculate desired velocity vector in cm/s in NEU:
-        const float kp = g2.follow.get_pos_p().kP();
+        // const float kp = g2.follow.get_pos_p().kP();
+        float kp;
+        float kp_static = g2.follow.get_pos_p().kP();
+        float kp_100kmph  = g2.follow.get_pos_p_100kmph();
+
+        if (vel_of_target.xy().length() <= 0.1) //m/s
+        {
+            kp = kp_static;
+        }
+        else if ((vel_of_target.xy().length() ) >= 100/3.6) //m/s
+        {
+            kp = kp_100kmph;
+        }
+        else // If in-between 0 and 100 km/h, interpolate
+        {
+            kp = (kp_100kmph - kp_static) * (vel_of_target.xy().length()) / (100/3.6) + kp_static;
+        }
+        // gcs().send_text(MAV_SEVERITY_CRITICAL, "Gain kp: %4.2f.", kp);
+
         const float kd = g2.follow.get_pos_d();
         // desired_velocity_neu_cms.x =  (vel_of_target.x * 100.0f) + (dist_vec_offs_neu.x * kp);
         // desired_velocity_neu_cms.y =  (vel_of_target.y * 100.0f) + (dist_vec_offs_neu.y * kp);
@@ -786,7 +822,25 @@ void ModeThrow::follow_target_2D()
         }
 
         // Position controller: PD controller with Feedforward
-        const float kp = g2.follow.get_pos_p().kP();
+        // const float kp = g2.follow.get_pos_p().kP();
+        float kp;
+        float kp_static = g2.follow.get_pos_p().kP();
+        float kp_100kmph  = g2.follow.get_pos_p_100kmph();
+
+        if (vel_of_target.xy().length() <= 0.1) //m/s
+        {
+            kp = kp_static;
+        }
+        else if ((vel_of_target.xy().length() ) >= 100/3.6) //m/s
+        {
+            kp = kp_100kmph;
+        }
+        else // If in-between 0 and 100 km/h, interpolate
+        {
+            kp = (kp_100kmph - kp_static) * (vel_of_target.xy().length()) / (100/3.6) + kp_static;
+        }
+        // gcs().send_text(MAV_SEVERITY_CRITICAL, "Gain kp: %4.2f.", kp);
+        
         const float kd = g2.follow.get_pos_d();
 
         // desired_velocity_ne_cms.x =  (vel_of_target.x * 100.0f) + (dist_vec_offs_ne.x * kp);
@@ -937,7 +991,9 @@ void ModeThrow::follow_target_2D()
 
 bool ModeThrow::target_over_vehicle_has_been_reached()
 {
-    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 50.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 50.0) // If drone is within landing range of target (100 cm square), start descent!
+    // if (abs(horizontal_dist_from_target_with_offset_cm.x) >= 50.0 || abs(horizontal_dist_from_target_with_offset_cm.y) >= 50.0) // If drone is within landing range of target (100 cm square), start descent!
+    // The range is a square of [ 2*g.land_trgt_rng_cm x 2*g.land_trgt_rng_cm ] around the virtual target point.
+    if (abs(horizontal_dist_from_target_with_offset_cm.x) >= g.land_trgt_rng_cm || abs(horizontal_dist_from_target_with_offset_cm.y) >= g.land_trgt_rng_cm) // If drone is within landing range of target (100 cm square), start descent!
     {
         return false;
     }
