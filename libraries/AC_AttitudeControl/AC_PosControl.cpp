@@ -586,7 +586,7 @@ void AC_PosControl::stop_vel_xy_stabilisation()
     _pid_vel_xy.reset_I();
 }
 
-// is_active_xy - returns true if the xy position controller has bee n run in the previous 5 loop times
+// is_active_xy - returns true if the xy position controller has been run in the previous 5 loop times
 bool AC_PosControl::is_active_xy() const
 {
     const uint32_t dt_us = AP::ins().get_last_update_usec() - _last_update_xy_us;

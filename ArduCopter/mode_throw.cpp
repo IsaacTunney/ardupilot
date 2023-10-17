@@ -1,10 +1,14 @@
 #include "Copter.h"
 #include <GCS_MAVLink/GCS.h>
 #include <algorithm>
+#include <set>
+
+// @TODO Change all the speeds related to landing on moving vehicle for a single parameter
+// Instead of having loit_speed, foll_spd and wpnav_speed, use only one: wpnav_speed
 
 // Initialise land controller
 bool ModeThrow::init(bool ignore_checks)
-{
+{   
     // For now, do not use rangefinder when landing on vehicle
     if (g.land_use_rf == 1)
     {
@@ -78,7 +82,7 @@ bool ModeThrow::init(bool ignore_checks)
         gcs().send_text(MAV_SEVERITY_ALERT, "EXITING: Land speed (%4.2f cm/s) is higher than wpnav speed dn (%4.2f cm/s)", double(g.land_speed), wpnav_speed_dn);
         return false;
     }
-    
+   
     if (g.land_type == VEHICLE)
     {
         if (!g2.follow.enabled())
@@ -108,6 +112,8 @@ bool ModeThrow::init(bool ignore_checks)
         msg_target_reached_sent = false;
         time_last_ms = 0;
         sentPitchToZeroMsgOnce = false;
+        sentCommitMsgOnce = false;
+        sentCancelMsgOnce = false;
 
         return ModeGuided::init(ignore_checks);
     }
@@ -115,6 +121,8 @@ bool ModeThrow::init(bool ignore_checks)
     {
         return true;
     }
+
+
 }
 
 // Perform cleanup required when leaving mode
@@ -135,10 +143,10 @@ void ModeThrow::run()
     if (use_rangefinder)
     {
         height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
-        for (int c = 8; c >= 0; c--)
+        for (int c = 8; c >= 0; c--) // Managing rangefinder queue
         {
             RFdistance_buffer[c + 1] = RFdistance_buffer[c];
-        } // Managing buffer for rangefinder distances:
+        }
         RFdistance_buffer[0] = height_above_ground_cm;
     }
 
@@ -174,7 +182,7 @@ void ModeThrow::landing_with_gps_run()
     // Landing state machine:
     run_landing_state_machine();
 
-    // POST-LANDING SAFETY CHECKS:
+    // Safety checks
     // Disarm when the landing detector says we've landed
     if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
     {
@@ -233,20 +241,13 @@ void ModeThrow::landing_without_gps_run()
 
     // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
     attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
-
-    // // Managing buffer for rangefinder distances:
-    // if (use_rangefinder)
-    // {
-    //     for (int c = 8; c >= 0; c--) { RFdistance_buffer[c+1] = RFdistance_buffer[c]; }
-    //     RFdistance_buffer[0] = height_above_ground_cm;
-    // }
 }
 
 // LAND CONTROLLER WITH GPS FOR LANDING ON MOVING TARGET - Guided mode commands for horizontal control and standard z-controller for altitude
 // Frequency: 100hz or more
 void ModeThrow::landing_on_moving_vehicle_run()
 {
-    // SAFETY CHECKS:
+    // Safety checks
     if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
     {
         copter.arming.disarm(AP_Arming::Method::LANDED); // Disarm when the landing detector says we've landed
@@ -315,19 +316,6 @@ void ModeThrow::landing_on_moving_vehicle_run()
         break;
     }
 
-    // Peut utiliser la fonction attitude_control->input_euler_angle_roll_pitch_yaw() pour set l'angle à 0
-
-    // Landing and post-landing safety checks:
-    if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
-    {
-        copter.arming.disarm(AP_Arming::Method::LANDED);
-        gcs().send_text(MAV_SEVERITY_INFO, "Ground idle detected; Disarming drone...");
-    }
-    if (is_disarmed_or_landed())
-    {
-        make_safe_ground_handling();
-    }
-
     // Managing the switch of landing states:
     if (landingOnVehicle_previousState != landingOnVehicle_state)
     {
@@ -360,16 +348,13 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
 
     if (g2.follow.get_target_dist_and_vel_ned(dist_vec, dist_vec_offs, vel_of_target) && allow_following)
     {
+        dist_vec_last = dist_vec; // keep track of 
 
         target_was_acquired = true;
 
         // Convert dist_vec_offs to cm in NE:
         const Vector2f dist_vec_offs_ne(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f);
 
-        // if (runCount % 200 == 0)
-        // {
-        //     gcs().send_text(MAV_SEVERITY_INFO, "Dist from landing target: x:%4.3f m; y:%4.3f m; z:%4.3f m.", dist_vec_offs.x, dist_vec_offs.y, dist_vec.z);
-        // }
 
         // Position controller: PD controller with Feedforward
         // const float kp = g2.follow.get_pos_p().kP();
@@ -513,17 +498,12 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
             gcs().send_text(MAV_SEVERITY_CRITICAL, "Did not find target...");
         }
         target_was_acquired = false;
-    }
 
-    // // Print Mavlink msg rate:
-    // uint32_t time_now_ms = AP_HAL::millis();
-    // if (runCount % 400 == 0)
-    // {
-    //     uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
-    //     gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
-    //     g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
-    //     time_last_ms = time_now_ms;
-    // }
+        // @TODO Based on previous data, estimate target state and continue "blind" following for 10 loops
+        // ...
+        // ...
+        // ...
+    }
 
     // Log output at 10hz:
     uint32_t now = AP_HAL::millis();
@@ -534,23 +514,58 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
         last_log_ms = now;
     }
 
-    // When desired height for pitch-to-zero is reached, switch to attitude control
-    if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters)
+    // If we have target lock, check dist_vec.z and decide when to do PTZ maneuver.
+    // If we lose target lock, decide if you commit or cancel based on last known dist_vec.z.
+    // If dist_vec.z < 1 m, commit to landing (either before or after PTZ, it doesn't matter)
+    // Also count how many loops we make without target lock and estimate target state for these loops.
+    // Allow for X number of loops to happen before cancelling the sequence.
+    if (target_was_acquired)
     {
-        if (sentPitchToZeroMsgOnce==false)
+        // When desired height for pitch-to-zero is reached, switch to attitude control
+        if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters)
         {
-            gcs().send_text(MAV_SEVERITY_INFO, "Doing Pitch-to-zero manoeuver");
-            gcs().send_text(MAV_SEVERITY_INFO, "Height above target: %4.2f m", dist_vec.z);
-            sentPitchToZeroMsgOnce = true;
+            if (sentPitchToZeroMsgOnce==false)
+            {
+                gcs().send_text(MAV_SEVERITY_INFO, "Doing Pitch-to-zero manoeuver");
+                gcs().send_text(MAV_SEVERITY_INFO, "Height above target: %4.2f m", dist_vec.z);
+                sentPitchToZeroMsgOnce = true;
+            }
+            attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
         }
-        attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
+        // Otherwise, use Guided mode for position control in 2D
+        else
+        {
+            if (runCount % 200 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "Doing normal follow 2D"); }
+            ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
+            ModeGuided::run();
+        }
     }
-    // Otherwise, use Guided mode for position control in 2D
-    else
+    else // Target lost
     {
-        if (runCount % 200 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "Doing normal follow 2D"); }
-        ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
-        ModeGuided::run();
+        // If drone was within 1 meter of target in Z-axis, commit to descent
+        if (dist_vec_last.z <= 1.0)
+        {
+            if (sentCommitMsgOnce==false)
+            {
+                gcs().send_text(MAV_SEVERITY_INFO, "Target lost - commiting to landing anyway");
+                sentCommitMsgOnce = true;
+            }
+            attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
+        }
+        // Otherwise, cancel landing sequence and hover in place
+        else
+        {
+            if (sentCancelMsgOnce==false)
+            {
+                gcs().send_text(MAV_SEVERITY_INFO, "Target lost - cancelling sequence");
+                sentCancelMsgOnce = true;
+            }
+            ModeGuided::set_velocity(Vector3f(), use_yaw, yaw_cd, false, 0.0f, false, log_request);
+            ModeGuided::run();
+            allow_following = false;
+            // or 
+            // landingOnVehicle_state = FOLLOWING; to make the sequence continue
+        }
     }
 
     // @TODO Add safety if drone gets past 1m below target to stop sequence
@@ -646,23 +661,6 @@ void ModeThrow::follow_target_3D()
             desired_speed_xy = g2.follow.get_max_speed_cms();
         }
         desired_velocity_neu_cms.z = constrain_float(desired_velocity_neu_cms.z, -fabsf(pos_control->get_max_speed_down_cms()), pos_control->get_max_speed_up_cms());
-
-        // REMOVED EVERYTHING CONCERNING SLOW DOWN NEAR TARGET (only useful for follow mode):
-        // // Create unit vector towards target position (i.e. vector to lead vehicle + offset):
-        // Vector3f dir_to_target_neu = dist_vec_offs_neu;
-        // const float dir_to_target_neu_len = dir_to_target_neu.length();
-        // if (!is_zero(dir_to_target_neu_len)) { dir_to_target_neu /= dir_to_target_neu_len; }
-        // // Create horizontal desired velocity vector (required for slow down calculations):
-        // Vector2f desired_velocity_xy_cms(desired_velocity_neu_cms.x, desired_velocity_neu_cms.y);
-        // // Create horizontal unit vector towards target (required for slow down calculations):
-        // Vector2f dir_to_target_xy(desired_velocity_xy_cms.x, desired_velocity_xy_cms.y);
-        // if (!dir_to_target_xy.is_zero()) { dir_to_target_xy.normalize(); }
-        // // Slow down horizontally as we approach target (use 1/2 of maximum deceleration for gentle slow down):
-        // const float dist_to_target_xy = Vector2f(dist_vec_offs_neu.x, dist_vec_offs_neu.y).length();
-        // copter.avoid.limit_velocity_2D(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy_cmss() * 0.5f, desired_velocity_xy_cms, dir_to_target_xy, dist_to_target_xy, copter.G_Dt);
-        // // Copy horizontal velocity limits back to 3d vector:
-        // desired_velocity_neu_cms.x = desired_velocity_xy_cms.x;
-        // desired_velocity_neu_cms.y = desired_velocity_xy_cms.y;
 
         // Limit vertical desired_velocity_neu_cms to slow as we approach target (we use 1/2 of maximum deceleration for gentle slow down):
         const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z_cmss() * 0.5f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
@@ -765,16 +763,6 @@ void ModeThrow::follow_target_3D()
         }
         target_was_acquired = false;
     }
-
-    // // Print Mavlink msg rate:
-    // uint32_t time_now_ms = AP_HAL::millis();
-    // if (runCount % 400 == 0)
-    // {
-    //     uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
-    //     gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
-    //     g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
-    //     time_last_ms = time_now_ms;
-    // }
 
     // Log output at 10hz:
     uint32_t now = AP_HAL::millis();
@@ -966,16 +954,6 @@ void ModeThrow::follow_target_2D()
         target_was_acquired = false;
     }
 
-    // // Print Mavlink msg rate:
-    // uint32_t time_now_ms = AP_HAL::millis();
-    // if (runCount % 400 == 0)
-    // {
-    //     uint32_t avg_time_ms = (time_now_ms - time_last_ms) / g2.follow.get_num_of_msg_received();
-    //     gcs().send_text(MAV_SEVERITY_NOTICE, "Target msgs updates freq: %3f Hz", (double)1000 / avg_time_ms);
-    //     g2.follow.reset_num_of_msg_received(); // Reset mavlink msg counter to zero
-    //     time_last_ms = time_now_ms;
-    // }
-
     // Log output at 10hz:
     uint32_t now = AP_HAL::millis();
     bool log_request = false;
@@ -1046,7 +1024,6 @@ void ModeThrow::run_landing_state_machine()
             gcs().send_text(MAV_SEVERITY_INFO, "State : DESCENT");
         }
 
-        //
         // height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
         if (use_rangefinder)
         {
@@ -1447,6 +1424,23 @@ void ModeThrow::process_pilot_inputs(float trgt_roll, float trgt_pitch, float tr
         }
     }
 }
+
+// void ModeThrow::printMsgOnce(MAV_SEVERITY severity, const char* message, ...)
+// {
+
+//     va_list arg_list;
+//     va_start(arg_list, message);
+//     gcs().send_textv(severity, message, arg_list);
+//     va_end(arg_list);
+
+//     static std::set<const char*> printedMessages;
+
+//     if (printedMessages.find(message) == printedMessages.end())
+//     {
+//         gcs().send_text(severity, message);
+//         printedMessages.insert(message);
+//     }
+// }
 
 // ##########################################################################################################
 // ##########################################################################################################

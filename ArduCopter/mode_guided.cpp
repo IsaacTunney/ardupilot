@@ -226,10 +226,10 @@ void ModeGuided::wp_control_run()
     }
 }
 
-// initialise position controller
+// Initialize position controller
 void ModeGuided::pva_control_start()
 {
-    // initialise horizontal speed, acceleration
+    // initialize horizontal speed, acceleration
     pos_control->set_max_speed_accel_xy(wp_nav->get_default_speed_xy(), wp_nav->get_wp_acceleration());
     pos_control->set_correction_speed_accel_xy(wp_nav->get_default_speed_xy(), wp_nav->get_wp_acceleration());
 
@@ -237,18 +237,48 @@ void ModeGuided::pva_control_start()
     pos_control->set_max_speed_accel_z(wp_nav->get_default_speed_down(), wp_nav->get_default_speed_up(), wp_nav->get_accel_z());
     pos_control->set_correction_speed_accel_z(wp_nav->get_default_speed_down(), wp_nav->get_default_speed_up(), wp_nav->get_accel_z());
 
-    // initialise velocity controller
-    pos_control->init_z_controller();
-    pos_control->init_xy_controller();
+    // Initialize velocity controller
+    // First check if pos_control is active, to make sure vel_desired and vel_target are not reset to the current vel.
+    if (!pos_control->is_active_xy())
+    {
+        pos_control->init_xy_controller();
+    }
+    if (!pos_control->is_active_z())
+    {
+        pos_control->init_z_controller();
+    }
+    // pos_control->init_xy_controller();
+    // pos_control->init_z_controller();
 
-    // initialise yaw
+    // initialize yaw
     auto_yaw.set_mode_to_default(false);
 
-    // initialise terrain alt
+    // initialize terrain alt
     guided_pos_terrain_alt = false;
 }
 
-// initialise guided mode's position controller
+// Initialize position controller North-East
+void ModeGuided::pva_ne_control_start()
+{
+    // initialize horizontal speed, acceleration
+    pos_control->set_max_speed_accel_xy(wp_nav->get_default_speed_xy(), wp_nav->get_wp_acceleration());
+    pos_control->set_correction_speed_accel_xy(wp_nav->get_default_speed_xy(), wp_nav->get_wp_acceleration());
+
+    // Initialize velocity controller
+    // First check if pos_control is active, to make sure vel_desired and vel_target are not reset to the current vel.
+    if (!pos_control->is_active_xy())
+    {
+        pos_control->init_xy_controller();
+    }
+
+    // initialize yaw
+    auto_yaw.set_mode_to_default(false);
+
+    // initialize terrain alt
+    guided_pos_terrain_alt = false;
+}
+
+// Initialize guided mode's position controller
 void ModeGuided::pos_control_start()
 {
     // set to position control mode
@@ -258,7 +288,7 @@ void ModeGuided::pos_control_start()
     pva_control_start();
 }
 
-// initialise guided mode's velocity controller
+// Initialize guided mode's velocity controller
 void ModeGuided::accel_control_start()
 {
     // set guided_mode to velocity controller
@@ -268,27 +298,27 @@ void ModeGuided::accel_control_start()
     pva_control_start();
 }
 
-// initialise guided mode's velocity and acceleration controller
+// Initialize guided mode's velocity and acceleration controller
 void ModeGuided::velaccel_control_start()
 {
-    // set guided_mode to velocity controller
+    // Set guided_mode to velocity controller
     guided_mode = SubMode::VelAccel;
 
-    // initialise position controller
+    // Initialize position controller
     pva_control_start();
 }
 
-// initialise guided mode's velocity and acceleration controller - horizontal plane only
+// Initialize guided mode's velocity and acceleration controller - horizontal plane only
 void ModeGuided::velaccel_ne_control_start()
 {
-    // set guided_mode to velocity controller
+    // Set guided_mode to velocity controller
     guided_mode = SubMode::VelAccel_NE;
 
-    // initialise position controller
+    // Initialize position controller
     pva_control_start();  // can stay the same?...
 }
 
-// initialise guided mode's position, velocity and acceleration controller
+// Initialize guided mode's position, velocity and acceleration controller
 void ModeGuided::posvelaccel_control_start()
 {
     // set guided_mode to velocity controller
@@ -305,7 +335,7 @@ bool ModeGuided::is_taking_off() const
 
 bool ModeGuided::set_speed_xy(float speed_xy_cms)
 {
-    // initialise horizontal speed, acceleration
+    // Initialize horizontal speed, acceleration
     pos_control->set_max_speed_accel_xy(speed_xy_cms, wp_nav->get_wp_acceleration());
     pos_control->set_correction_speed_accel_xy(speed_xy_cms, wp_nav->get_wp_acceleration());
     return true;
@@ -313,7 +343,7 @@ bool ModeGuided::set_speed_xy(float speed_xy_cms)
 
 bool ModeGuided::set_speed_up(float speed_up_cms)
 {
-    // initialize vertical speeds and acceleration
+    // Initialize vertical speeds and acceleration
     pos_control->set_max_speed_accel_z(wp_nav->get_default_speed_down(), speed_up_cms, wp_nav->get_accel_z());
     pos_control->set_correction_speed_accel_z(wp_nav->get_default_speed_down(), speed_up_cms, wp_nav->get_accel_z());
     return true;
@@ -321,7 +351,7 @@ bool ModeGuided::set_speed_up(float speed_up_cms)
 
 bool ModeGuided::set_speed_down(float speed_down_cms)
 {
-    // initialize vertical speeds and acceleration
+    // Initialize vertical speeds and acceleration
     pos_control->set_max_speed_accel_z(speed_down_cms, wp_nav->get_default_speed_up(), wp_nav->get_accel_z());
     pos_control->set_correction_speed_accel_z(speed_down_cms, wp_nav->get_default_speed_up(), wp_nav->get_accel_z());
     return true;
@@ -571,7 +601,7 @@ void ModeGuided::set_velocity_ne(const Vector2f& velocity, bool use_yaw, float y
 // set_velaccel - sets guided mode's target velocity and acceleration
 void ModeGuided::set_velaccel(const Vector3f& velocity, const Vector3f& acceleration, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw, bool log_request)
 {
-    // check we are in velocity control mode
+    // check if we are in velocity control mode
     if (guided_mode != SubMode::VelAccel) {
         velaccel_control_start();
     }
@@ -596,7 +626,7 @@ void ModeGuided::set_velaccel(const Vector3f& velocity, const Vector3f& accelera
 // set_velaccel - sets guided mode's target velocity and acceleration
 void ModeGuided::set_velaccel_ne(const Vector2f& velocity_ne, const Vector2f& acceleration_ne, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw, bool log_request)
 {
-    // check we are in velocity control mode
+    // check if we are in velocity control mode
     if (guided_mode != SubMode::VelAccel_NE) {
         velaccel_ne_control_start();
     }

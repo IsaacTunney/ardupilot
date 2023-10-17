@@ -1680,6 +1680,7 @@ private:
     bool is_flipping_getting_worse();
     bool is_lean_angle_stabilizing();
     void process_pilot_inputs(float target_roll, float target_pitch, float target_yaw_rate);
+    // void printMsgOnce(MAV_SEVERITY severity, const char* message, ...);
     
     float motors_output;
     Vector2f motors_input;
@@ -1725,8 +1726,11 @@ private:
     bool     msg_target_reached_sent;
     float    target_speed_bearing;
     uint64_t time_last_ms;
+    Vector3f dist_vec_last;
 
     bool sentPitchToZeroMsgOnce;
+    bool sentCommitMsgOnce;
+    bool sentCancelMsgOnce;
 
 };
 
