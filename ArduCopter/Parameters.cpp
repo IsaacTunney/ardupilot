@@ -159,7 +159,15 @@ const AP_Param::Info Copter::var_info[] = {
     // @Units: cm
     // @Range: 0 to 200
     GSCALAR(land_trgt_rng_cm, "LAND_TRGT_RNG_CM", LAND_TRGT_RNG_CM_DEFAULT),
-    
+
+    // @Param: LAND_COMMIT_HGT_M
+    // @DisplayName: Land commit height, in meters
+    // @Description: During landing sequence on a vehicle, Height at which we commit to landing even if target lost.
+    // @User: Advanced
+    // @Units: m
+    // @Range: 0 to 3
+    GSCALAR(land_commit_hgt_m, "LAND_COMMIT_HGT_M", LAND_COMMIT_HGT_M_DEFAULT),
+
 #if MODE_RTL_ENABLED == ENABLED
     // @Param: RTL_ALT
     // @DisplayName: RTL Altitude

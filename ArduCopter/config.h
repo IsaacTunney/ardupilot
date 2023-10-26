@@ -627,6 +627,11 @@
 #ifndef LAND_TRGT_RNG_CM_DEFAULT
  # define LAND_TRGT_RNG_CM_DEFAULT  50  // default value for the range around the target point where we consider it "reached"
 #endif
+
+#ifndef LAND_COMMIT_HGT_M_DEFAULT
+ # define LAND_COMMIT_HGT_M_DEFAULT  1.0 // default value for the height at which we commit to landing even if target is lost
+#endif
+
 //////////////////////////////////////////////////////////////////////////////
 
 

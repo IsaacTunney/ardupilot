@@ -385,6 +385,7 @@ public:
         k_param_land_mnvr = 262,
         k_param_land_ptz_hgt_m = 263,
         k_param_land_trgt_rng_cm = 264,
+        k_param_land_commit_hgt_m = 265,
         
 
         // the k_param_* space is 9-bits in size
@@ -472,6 +473,7 @@ public:
     AP_Int8         land_mnvr;
     AP_Float        land_ptz_hgt_m;
     AP_Int8         land_trgt_rng_cm;
+    AP_Float        land_commit_hgt_m;
 
 // ********** COMMENTED OUT FOR BENCH TEST MODE **********
 // #if MODE_THROW_ENABLED == ENABLED

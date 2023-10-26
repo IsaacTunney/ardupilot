@@ -20,6 +20,9 @@ bool ModeThrow::init(bool ignore_checks)
         gcs().send_text(MAV_SEVERITY_WARNING, "Not using rangefinder.");
     }
 
+    // Test
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Commit height param set to: %4.2f m.", (double)g.land_commit_hgt_m);
+
     // Check (only once) if we have GPS to decide on which landing sequence to execute
     control_position = copter.position_ok();
     // **Éventuellement, seulement accepter le landing AVEC GPS et RANGEFINDER!
@@ -121,8 +124,6 @@ bool ModeThrow::init(bool ignore_checks)
     {
         return true;
     }
-
-
 }
 
 // Perform cleanup required when leaving mode
@@ -201,10 +202,12 @@ void ModeThrow::landing_with_gps_run()
         loiter_nav->clear_pilot_desired_acceleration();
         motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED); // set motors to full range
         land_run_horiz_and_vert_control(land_pause);
+        
+        // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
+        attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
+
     }
 
-    // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
-    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
 }
 
 // LAND CONTROLLER WITH NO GPS - Pilot controls roll and pitch angles
@@ -234,13 +237,15 @@ void ModeThrow::landing_without_gps_run()
     {
         motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
         land_run_vertical_control(land_pause);
+        
+        // Call attitude controller
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
+        
+        // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
+        attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
+
     }
 
-    // Call attitude controller
-    attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
-
-    // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
-    attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
 }
 
 // LAND CONTROLLER WITH GPS FOR LANDING ON MOVING TARGET - Guided mode commands for horizontal control and standard z-controller for altitude
@@ -307,8 +312,8 @@ void ModeThrow::landing_on_moving_vehicle_run()
         {
             follow_target_2D();
         }
-        run_landing_state_machine();
-        land_run_vertical_control(land_pause);
+        // run_landing_state_machine();
+        // land_run_vertical_control(land_pause);
         attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
         break;
 
@@ -330,12 +335,12 @@ void ModeThrow::landing_on_moving_vehicle_run()
 
 void ModeThrow::follow_target_2D_pitch_to_zero()
 {
-    if (is_disarmed_or_landed())
-    {
-        make_safe_ground_handling();
-        return;
-    }
-    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+    // if (is_disarmed_or_landed())
+    // {
+    //     make_safe_ground_handling();
+    //     return;
+    // }
+    // motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     bool use_yaw = false;
     float yaw_cd = 0.0f;
@@ -539,50 +544,48 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
             ModeGuided::set_velocity_ne(desired_velocity_ne_cms, use_yaw, yaw_cd, false, 0.0f, false, log_request);
             ModeGuided::run();
         }
+        run_landing_state_machine();
+        land_run_vertical_control(land_pause);
     }
-    else // Target lost
+    else if (dist_vec_last.z <= g.land_commit_hgt_m) // Target lost, but drone within 1 meter of target in Z-axis
     {
-        // If drone was within 1 meter of target in Z-axis, commit to descent
-        if (dist_vec_last.z <= 1.0)
+        // If drone was within 1 meter of target in Z-axis, commit to descent and do PTZ right away
+        if (sentCommitMsgOnce==false)
         {
-            if (sentCommitMsgOnce==false)
-            {
-                gcs().send_text(MAV_SEVERITY_INFO, "Target lost - commiting to landing anyway");
-                sentCommitMsgOnce = true;
-            }
-            attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
+            gcs().send_text(MAV_SEVERITY_INFO, "Target lost - commiting to landing anyway");
+            sentCommitMsgOnce = true;
         }
-        // Otherwise, cancel landing sequence and hover in place
-        else
-        {
-            if (sentCancelMsgOnce==false)
-            {
-                gcs().send_text(MAV_SEVERITY_INFO, "Target lost - cancelling sequence");
-                sentCancelMsgOnce = true;
-            }
-            ModeGuided::set_velocity(Vector3f(), use_yaw, yaw_cd, false, 0.0f, false, log_request);
-            ModeGuided::run();
-            allow_following = false;
-            // or 
-            // landingOnVehicle_state = FOLLOWING; to make the sequence continue
-        }
+        attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
+        run_landing_state_machine();
+        land_run_vertical_control(land_pause);
     }
-
+    else // Otherwise, cancel landing sequence and hover in place
+    {
+        if (sentCancelMsgOnce==false)
+        {
+            gcs().send_text(MAV_SEVERITY_INFO, "Target lost - cancelling sequence");
+            sentCancelMsgOnce = true;
+        }
+        ModeGuided::set_velocity(Vector3f(), use_yaw, yaw_cd, false, 0.0f, false, log_request);
+        ModeGuided::run();
+        allow_following = false;
+        // or 
+        // landingOnVehicle_state = FOLLOWING; to make the sequence continue
+    }
     // @TODO Add safety if drone gets past 1m below target to stop sequence
     // (drone should never be below target if the sequence is successful)
 
     // @TODO Add Rangefinder implementation (use it as another condition with gps height?)
-
 }
 
 void ModeThrow::follow_target_3D()
 {
-    if (is_disarmed_or_landed())
-    {
-        make_safe_ground_handling();
-        return;
-    }
-    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+    // if (is_disarmed_or_landed())
+    // {
+    //     make_safe_ground_handling();
+    //     return;
+    // }
+    // motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     bool use_yaw = false;
     float yaw_cd = 0.0f;
@@ -780,12 +783,12 @@ void ModeThrow::follow_target_3D()
 
 void ModeThrow::follow_target_2D()
 {
-    if (is_disarmed_or_landed())
-    {
-        make_safe_ground_handling();
-        return;
-    }
-    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+    // if (is_disarmed_or_landed())
+    // {
+    //     make_safe_ground_handling();
+    //     return;
+    // }
+    // motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     bool use_yaw = false;
     float yaw_cd = 0.0f;
