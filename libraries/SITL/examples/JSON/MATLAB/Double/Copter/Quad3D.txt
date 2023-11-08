@@ -1,0 +1,234 @@
+NewtonianFrame 	N
+
+RigidBody	B
+RigidFrame  W
+
+Point 		M1(B), M2(B), M3(B), M4(B)	% Motors
+
+%----------------------------------
+% 	Drone Parameters
+Variable x'', y'', z''
+
+Variable e0', e1', e2', e3'
+Variable p', q', r'
+
+Constant g = 9.81 m/s^2
+
+Constant mB = 1.2 kg
+Constant IBxx = 0.0123 kg*m^2
+Constant IByy = 0.0123 kg*m^2
+Constant IBzz = 0.0224 kg*m^2
+Constant dxm = 0.16 m
+Constant dym = 0.16 m
+Constant dzm = 0.05 m
+
+Constant kTh = 1.076e-5 NoUnits
+Constant kTo = 1.632e-7 NoUnits
+
+Constant Jm = 2.7e-5 kg*m^2
+Constant kv = 0.0099 N*m/Amp
+Constant kt = 0.0099 Volt/(rad/s)
+Constant b = 9.1679e-9 N*m/(rad/s)
+Constant Res = 0.2990 Ohms
+Constant L = 0.0038 Henry
+
+Constant c0
+Constant c1
+
+Specified Command_percent1, Command_percent2, Command_percent3, Command_percent4
+
+Specified Thr1, Thr2, Thr3, Thr4
+Specified Tor1, Tor2, Tor3, Tor4
+
+Variable w1', w2', w3', w4'
+Variable I1', I2', I3', I4'
+
+Constant efpa0
+Constant efpa1
+
+Specified qW												% Wind angle
+Specified WindVel											% Wind speed
+Constant rho = 1.225 kg/m^3
+Constant Cd = 0.1 NoUnits
+Specified Area										% Dragsurface area
+
+Constant batt_voltage = 24 Volt
+Constant batt_resistance = 0.1 Ohms
+
+
+%----------------------------------
+% 	Mass and Inertia
+B.SetMass(mB)
+B.SetInertia(Bcm, IBxx, IByy, IBzz)
+
+
+%----------------------------------
+% 	Rotational
+B.SetAngularVelocityAcceleration(N, p*Bx> + q*By> + r*Bz>)
+B.SetRotationMatrixODE(N, EulerParameters, e0, e1, e2, e3)
+
+
+%----------------------------------
+% 	Transational
+Bcm.Translate(No,    x*nx> + y*ny> + z*nz>)
+M1.Translate(Bcm,  dxm*bx> + dym*by> - dzm*bz>) % (Ardupilot order)
+M2.Translate(Bcm, -dxm*bx> - dym*by> - dzm*bz>)
+M3.Translate(Bcm,  dxm*bx> - dym*by> - dzm*bz>)
+M4.Translate(Bcm, -dxm*bx> + dym*by> - dzm*bz>)
+
+
+%----------------------------------
+% 	Wind
+W.RotateZ(N, qW)
+Wo.SetVelocity(N, WindVel*wx>)
+airspeed> = Bcm.GetVelocity(N)-Wo.GetVelocity(N)
+
+
+%----------------------------------
+% 	Equivalent Flat-plate Area
+Area = efpa0 + efpa1*sqrt(dot(airspeed>, nx>)^2 + dot(airspeed>, ny>)^2)
+
+
+%----------------------------------
+% 	Drag
+drag = 0.5*rho*Area*Cd*(GetMagnitude(airspeed>))^2
+
+
+%--------------------------------
+% Battery Model
+batt_current = I1+I2+I3+I4
+batt_dropped_voltage = batt_voltage - batt_resistance * batt_current
+
+%--------------------------------
+% Rotor Model 1
+Command_w1 = c0 + c1*Command_percent1
+Command_V1 = Command_w1*Kv * (batt_dropped_voltage/batt_voltage)
+
+V_BEMF1 = w1*Kv
+V_diff_1 = Command_V1 - V_BEMF1
+Thr1 = kTh*w1^2
+Tor1 = kTo*w1^2
+TorMec1 = I1*Kt
+TorAccel1 = TorMec1 - Tor1
+
+
+%--------------------------------
+% Rotor Model 2
+Command_w2 = c0 + c1*Command_percent2
+Command_V2 = Command_w2*Kv * (batt_dropped_voltage/batt_voltage)
+
+V_BEMF2 = w2*Kv
+V_diff_2 = Command_V2 - V_BEMF2
+Thr2 = kTh*w2^2
+Tor2 = kTo*w2^2
+TorMec2 = I2*Kt
+TorAccel2 = TorMec2 - Tor2
+
+
+%--------------------------------
+% Rotor Model 3
+Command_w3 = c0 + c1*Command_percent3
+Command_V3 = Command_w3*Kv * (batt_dropped_voltage/batt_voltage)
+
+V_BEMF3 = w3*Kv
+V_diff_3 = Command_V3 - V_BEMF3
+Thr3 = kTh*w3^2
+Tor3 = kTo*w3^2
+TorMec3 = I3*Kt
+TorAccel3 = TorMec3 - Tor3
+
+
+%--------------------------------
+% Rotor Model 4
+Command_w4 = c0 + c1*Command_percent4
+Command_V4 = Command_w4*Kv * (batt_dropped_voltage/batt_voltage)
+
+V_BEMF4 = w4*Kv
+V_diff_4 = Command_V4 - V_BEMF4
+Thr4 = kTh*w4^2
+Tor4 = kTo*w4^2
+TorMec4 = I4*Kt
+TorAccel4 = TorMec4 - Tor4
+
+
+%----------------------------------
+% 	Forces and moments on B
+B.AddForceGravity( g*nz> )
+
+M1.AddForce( -Thr1*bz> )
+M2.AddForce( -Thr2*bz> )
+M3.AddForce( -Thr3*bz> )
+M4.AddForce( -Thr4*bz> )
+
+B.AddTorque( TorMec1*bz> + TorMec2*bz> - TorMec3*bz> - TorMec4*bz> )
+
+
+%----------------------------------
+% 	Drag Force
+dragForce> = -drag*airspeed>/(GetMagnitude(airspeed>)+0.001)
+Bcm.AddForce(dragForce>)
+
+
+%--------------------------------
+%	Output
+xM1 = dot(M1.GetPosition(No),nx>)
+yM1 = dot(M1.GetPosition(No),ny>)
+zM1 = dot(M1.GetPosition(No),nz>)
+xM2 = dot(M2.GetPosition(No),nx>)
+yM2 = dot(M2.GetPosition(No),ny>)
+zM2 = dot(M2.GetPosition(No),nz>)
+xM3 = dot(M3.GetPosition(No),nx>)
+yM3 = dot(M3.GetPosition(No),ny>)
+zM3 = dot(M3.GetPosition(No),nz>)
+xM4 = dot(M4.GetPosition(No),nx>)
+yM4 = dot(M4.GetPosition(No),ny>)
+zM4 = dot(M4.GetPosition(No),nz>)
+
+% xDrag = dot(dragForce>,nx>)
+% yDrag = dot(dragForce>,ny>)
+% zDrag = dot(dragForce>,nz>)
+
+% xAirspeed = dot(airspeed>,nx>)
+% yAirspeed = dot(airspeed>,ny>)
+% zAirspeed = dot(airspeed>,nz>)
+
+
+%--------------------------------
+%	Solve Motion 
+Dynamics[1] = dot(B.GetDynamics(), nx>)
+Dynamics[2] = dot(B.GetDynamics(), ny>)
+Dynamics[3] = dot(B.GetDynamics(), nz>)
+Dynamics[4] = dot(B.GetDynamics(Bcm), nx>)
+Dynamics[5] = dot(B.GetDynamics(Bcm), ny>)
+Dynamics[6] = dot(B.GetDynamics(Bcm), nz>)
+
+Motor[1]  = L*I1' + Res*I1 - V_diff_1
+Motor[2]  = Jm*w1' + b*w1 - TorAccel1
+Motor[3] = L*I2' + Res*I2 - V_diff_2
+Motor[4] = Jm*w2' + b*w2 - TorAccel2
+Motor[5]  = L*I3' + Res*I3 - V_diff_3
+Motor[6]  = Jm*w3' + b*w3 - TorAccel3
+Motor[7] = L*I4' + Res*I4 - V_diff_4
+Motor[8] = Jm*w4' + b*w4 - TorAccel4
+
+Input x  = 0 m , y = 0 m, z  = 0 m
+Input x' = 0 m/s, y' = 0 m/s, z' = 0 m/s
+Input e0 = 1, e1 = 0, e2 = 0, e3 = 0
+Input p = 0 rad/s, q = 0 rad/s, r = 0 rad/s
+
+Input I1 = 0 Amp, I2 = 0 Amp, I3 = 0 Amp, I4 = 0 Amp
+Input w1 = 0 rad/s, w2 = 0 rad/s, w3 = 0 rad/s, w4 = 0 rad/s
+
+Input tfinal = 5 sec, tStep = 0.001 sec
+
+Output t sec, x m, y m, z m, x' m/s, y' m/s, z' m/s, x'' m/s^2, y'' m/s^2, z'' m/s^2, e0, e1, e2, e3, p rad/s, q rad/s, r rad/s, p' rad/s^2, q' rad/s^2, r' rad/s^2
+Output Thr1 N, Thr2 N, Thr3 N, Thr4 N, Tor1 N*m, Tor2 N*m, Tor3 N*m, Tor4 N*m, TorMec1 N*m, TorMec2 N*m, TorMec3 N*m, TorMec4 N*m
+Output w1 rad/s, w2 rad/s, w3 rad/s, w4 rad/s, w1' rad/s^2, w2' rad/s^2, w3' rad/s^2, w4' rad/s^2, I1 Amps, I2 Amps, I3 Amps, I4 Amps
+Output qW rad, WindVel m/s
+% Output drag N, xDrag N, yDrag N, zDrag N
+% Output xAirspeed m/s, yAirspeed m/s, zAirspeed m/s
+
+
+% ODE([Dynamics; Motor], x'', y'', z'', p', q', r', w1', w2', w3', w4', I1', I2', I3', I4') Quad3D_motorsTorque.m
+
+Code Algebraic([Dynamics; Motor], x'', y'', z'', p', q', r', w1', w2', w3', w4', I1', I2', I3', I4') Quad3D_Algebraic.m
