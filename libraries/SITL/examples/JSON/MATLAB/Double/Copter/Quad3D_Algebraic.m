@@ -90,10 +90,13 @@ Output = CalculateOutput;
 %===========================================================================
 function SolutionToAlgebraicEquations = DoCalculations
 %===========================================================================
-Thr1 = kTh*w1^2;
-Thr2 = kTh*w2^2;
-Thr3 = kTh*w3^2;
-Thr4 = kTh*w4^2;
+planarAirspeed = sqrt((WindVel*sin(qW)-yDt)^2+(WindVel*cos(qW)-xDt)^2);
+thrCorrFactor = 1 - 0.01*planarAirspeed;
+thrCorrFactor = min([1, max([0, thrCorrFactor])]);
+Thr1 = thrCorrFactor*kTh*w1^2; 
+Thr2 = thrCorrFactor*kTh*w2^2;
+Thr3 = thrCorrFactor*kTh*w3^2;
+Thr4 = thrCorrFactor*kTh*w4^2;
 Tor1 = kTo*w1^2;
 Tor2 = kTo*w2^2;
 Tor3 = kTo*w3^2;

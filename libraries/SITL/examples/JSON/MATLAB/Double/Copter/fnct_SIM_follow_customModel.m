@@ -14,7 +14,8 @@ params.dxm  = 0.16;
 params.dym  = 0.16;
 params.dzm  = 0.05;
 
-params.kTh  = 1.4738e-05;             % N/(rad/s)
+corrFactor  = 0.8;
+params.kTh  = 1.4738e-05 * corrFactor;             % N/(rad/s)
 params.kTo  = 2.5430e-07;             % N*m/(rad/s)
 params.c0   = -75.23;
 params.c1   = 26.44;
@@ -138,7 +139,7 @@ end
 %% Physics time step for DRONE
 function state = physics_step_drone(pwm_in,state)
 
-Command = (pwm_in(1:4)-1000)/1000*100;
+Command = (pwm_in(10:13)-1500)/500*100;
 
 [Sol,Output] = Quad3D_Algebraic(state.time_s, state.params, state.STATE, Command);
 
