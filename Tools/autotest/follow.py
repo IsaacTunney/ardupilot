@@ -240,4 +240,13 @@ class FollowTest(AutoTest):
                 continue
 
             sitl_output.write(buf)
+
+    def end_test(self):
+        if self.rc_thread is not None:
+            self.progress("Joining RC thread in __del__")
+            self.rc_thread_should_quit = True
+            self.rc_thread.join()
+            self.rc_thread = None
+        self.close()
+        util.pexpect_close_all()
         

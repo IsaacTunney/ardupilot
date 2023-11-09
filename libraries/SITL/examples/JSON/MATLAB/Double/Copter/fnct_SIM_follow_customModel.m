@@ -47,7 +47,6 @@ state_target.max_jerk_brk = 1;       % Maximum Jerk (m/s^3)
 state_target.max_acc_brk = 1;      % Maximum Acceleration (m/s^2)
 
 state_target.target_vel = 0;       % Initialize Target Velocity (m/s)
-state_target.prev_target_vel = 0;       % Initialize Previous Target Velocity (m/s)
 
 state_target.Pv = 1;
 state_target.Dv = 0;
@@ -230,13 +229,13 @@ end
 %% Physics time step for TARGET
 function state = physics_step_target(pwm_in,state)
 
-recv_vel_target = (pwm_in(8)-1000)/1000*(state.max_vel-state.min_vel) + state.min_vel;
-
-if recv_vel_target ~= state.target_vel
-    state.prev_target_vel = state.target_vel;
-    state.target_vel = recv_vel_target;
+if pwm_in(8) >= 1000 && pwm_in(8) <= 2000
+    recv_vel_target = (pwm_in(8)-1000)/1000*(state.max_vel-state.min_vel) + state.min_vel;
+else
+    recv_vel_target = 0;
 end
 
+state.target_vel = recv_vel_target;
 
 if all(pwm_in(1:4) > 1050)
     state.startMove = 1;
