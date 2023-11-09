@@ -24,6 +24,7 @@ min_vel = 5.5555
 
 @contextmanager
 def pushd(new_dir):
+    """Change directory"""
     previous_dir = os.getcwd()
     os.chdir(new_dir)
     try:
@@ -107,37 +108,37 @@ def main(argv):
     follow_params = "follow.parm"
     leader_params = "leader.parm"
 
-    # Create customisation string and start SITL (drone)
-    drone1.progress("Starting Drone Simulator")
-    customisations1 = [
-        "--uartD", "udpclient:%s" % udp_gcs_ip, 
-        "--uartC", "mcast:",
-        "-I", "%s" % drone1.instance,
-        "--defaults", "%s,%s" % (default_params, follow_params),
-        ]
-    with pushd('copter1'):
-        drone1.start_SITL(model=model,
-                    home=drone_home,
-                    speedup=speedup,
-                    customisations=customisations1,
-                    wipe=wipe)
-    
-    # Create customisation string and start SITL (vehicle)
-    vehic2.progress("Starting Target Simulator")
-    customisations2 = [
-        "--uartD", "udpclient:%s" % udp_gcs_ip, 
-        "--uartC", "mcast:",
-        "-I", "%s" % vehic2.instance,
-        "--defaults", "%s,%s" % (default_params, leader_params),
-        ]
-    with pushd('copter2'):
-        vehic2.start_SITL(model=model,
-                    home=vehicle_home,
-                    speedup=speedup,
-                    customisations=customisations2,
-                    wipe=wipe)
-    
     try:
+        # Create customisation string and start SITL (drone)
+        drone1.progress("Starting Drone Simulator")
+        customisations1 = [
+            "--uartD", "udpclient:%s" % udp_gcs_ip, 
+            "--uartC", "mcast:",
+            "-I", "%s" % drone1.instance,
+            "--defaults", "%s,%s" % (default_params, follow_params),
+            ]
+        with pushd('copter1'):
+            drone1.start_SITL(model=model,
+                        home=drone_home,
+                        speedup=speedup,
+                        customisations=customisations1,
+                        wipe=wipe)
+        
+        # Create customisation string and start SITL (vehicle)
+        vehic2.progress("Starting Target Simulator")
+        customisations2 = [
+            "--uartD", "udpclient:%s" % udp_gcs_ip, 
+            "--uartC", "mcast:",
+            "-I", "%s" % vehic2.instance,
+            "--defaults", "%s,%s" % (default_params, leader_params),
+            ]
+        with pushd('copter2'):
+            vehic2.start_SITL(model=model,
+                        home=vehicle_home,
+                        speedup=speedup,
+                        customisations=customisations2,
+                        wipe=wipe)
+    
         # Start Mavlink connection between Python and both SITL instances
         drone1.get_mavlink_connection_going()
         drone1.mav.target_system = 1
@@ -204,8 +205,10 @@ def main(argv):
         # -------------------------- END OF TRIAL -------------------------- #
 
     except Exception:
-        drone1.end_test()
-        vehic2.end_test()
+        if 'drone1' in locals():
+            drone1.end_test()
+        if 'vehic2' in locals():
+            vehic2.end_test()
         raise
 
     drone1.end_test()
