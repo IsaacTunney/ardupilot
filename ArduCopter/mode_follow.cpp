@@ -83,7 +83,7 @@ void ModeFollow::run()
         // Convert dist_vec_offs to cm in NEU
         const Vector3f dist_vec_offs_neu(dist_vec_offs.x * 100.0f, dist_vec_offs.y * 100.0f, -dist_vec_offs.z * 100.0f);
 
-        if (runCount%50 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "Dist from v-target: x:%4.3f m; y:%4.3f m", dist_vec_offs.x, dist_vec_offs.y); }
+        if (runCount%100 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "Dist from v-target: x:%4.3f m; y:%4.3f m", dist_vec_offs.x, dist_vec_offs.y); }
         if (abs(dist_vec_offs_neu.x) <= 50.0 && abs(dist_vec_offs_neu.y) <= 50.0 && msg_target_reached_sent == false) 
         {
             gcs().send_text(MAV_SEVERITY_CRITICAL, "TARGET REACHED!");
