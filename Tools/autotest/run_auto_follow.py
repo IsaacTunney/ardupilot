@@ -176,7 +176,7 @@ def main(argv):
         vehic2.wait_armed()
 
         # Vehicle velocity command
-        vehicle_vel = 110/3.6
+        vehicle_vel = 80/3.6
         pwm_vel = round(((vehicle_vel-min_vel)/(max_vel-min_vel))*1000 + 1000)
         vehic2.set_rc(8,pwm_vel)
         vehic2.delay_sim_time(5)
@@ -186,7 +186,7 @@ def main(argv):
             distance_string = drone1.wait_text("Dist from v-target:*", regex=True)
             distance_to_target = extract_numbers(distance_string)
             if distance_to_target:
-                print(f"x: {distance_to_target[0]}, y: {distance_to_target[1]}")
+                # print(f"x: {distance_to_target[0]}, y: {distance_to_target[1]}")
                 distance_to_target_xy = math.sqrt(distance_to_target[0]**2 + distance_to_target[1]**2)
                 if distance_to_target_xy < 0.25:
                     if 'start_time' not in locals():
