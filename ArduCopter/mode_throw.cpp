@@ -117,6 +117,7 @@ bool ModeThrow::init(bool ignore_checks)
         sentPitchToZeroMsgOnce = false;
         sentCommitMsgOnce = false;
         sentCancelMsgOnce = false;
+        ptz_started = false;
 
         return ModeGuided::init(ignore_checks);
     }
@@ -526,8 +527,72 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
     // Allow for X number of loops to happen before cancelling the sequence.
     if (target_was_acquired)
     {
+        // dist_vec.z // in m
+        // g.land_ptz_hgt_m
+        // fabsf(pos_control->get_max_speed_down_cms())
+        // pos_control->get_max_accel_z_cmss()
+        // ahrs.get_velocity_NED(vel_of_follower) // in m/s
+        // g.land_speed in cm/s
+        // ahrs.pitch_sensor // in centideg
+        // max_ang_acc = 1485 deg/s
+        // max_ang_vel = 250 deg/s
+        float dt_to_impact = 10;
+        float dt_for_ptz_maneuver = 0.3;
+        
+        if (ptz_started == false && ahrs.get_velocity_NED(vel_of_follower))
+        {
+            float max_accel_z_ms = fabsf(pos_control->get_max_accel_z_cmss())/100.0f;
+            float max_vel_z_ms = g.land_speed/100.0f;
+            float height_to_use = dist_vec.z - g.land_ptz_hgt_m;
+
+            // Impact velocity reached if constant acceleration
+            float predicted_impact_vel = safe_sqrt(sq(vel_of_follower.z) + 2 * max_accel_z_ms * height_to_use);
+            // If velocity reached less than LAND_SPEED
+            // Time to impact is simple to calculate
+            if (predicted_impact_vel <= max_vel_z_ms)
+            {
+                // Time before impact
+                dt_to_impact = (predicted_impact_vel - vel_of_follower.z)/max_accel_z_ms;
+            }
+            // If velocity reached greater than LAND_SPEED
+            // Time to impact is more complex to calculate, as it will get limited to LAND_SPEED at some point in the descent
+            else
+            {
+                // Distance travelled and time spent to reach LAND_SPEED
+                float dx_to_max_vel = (sq(max_vel_z_ms) - sq(vel_of_follower.z))/(2*max_accel_z_ms);
+                float dt_to_max_vel = (max_vel_z_ms - vel_of_follower.z)/max_accel_z_ms;
+                
+                // Time spend at constant velocity (LAND_SPEED)
+                float dt_at_cnst_vel = (height_to_use-dx_to_max_vel)/max_vel_z_ms;
+
+                // Total time before impact
+                dt_to_impact = dt_to_max_vel + dt_at_cnst_vel;
+            }
+
+            float max_ang_acc = 1485.0f;    // deg/s/s
+            float max_ang_vel = 250.0f;     // deg/s
+            float current_pitch = fabsf(ahrs.pitch_sensor/100.f);  // deg
+
+            float dt_to_reach_max_vel = max_ang_vel/max_ang_acc;
+            float pitch_change_during_ang_acc = dt_to_reach_max_vel*max_ang_vel/2;
+
+            if (pitch_change_during_ang_acc < current_pitch/2)
+            {
+                float pitch_change_at_cst_ang_vel = current_pitch-2*pitch_change_during_ang_acc;
+                float dt_cst_ang_vel = pitch_change_at_cst_ang_vel/max_ang_vel;
+                dt_for_ptz_maneuver = 2*dt_to_reach_max_vel + dt_cst_ang_vel;
+            }
+            else
+            {
+                // gcs().send_text(MAV_SEVERITY_INFO, "cant do srqt of: %4.3f ", current_pitch/max_ang_acc);
+                dt_for_ptz_maneuver = 2*safe_sqrt(current_pitch/max_ang_acc);
+            }
+            // if (runCount % 100 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "dt_to_impact: %4.3f s, dt_for_ptz_maneuver: %4.3f s", dt_to_impact, dt_for_ptz_maneuver); }
+        }
+        
         // When desired height for pitch-to-zero is reached, switch to attitude control
-        if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters)
+        // if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters)
+        if (dt_for_ptz_maneuver >= dt_to_impact || ptz_started==true)
         {
             if (sentPitchToZeroMsgOnce==false)
             {
@@ -535,6 +600,7 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
                 gcs().send_text(MAV_SEVERITY_INFO, "Height above target: %4.2f m", dist_vec.z);
                 sentPitchToZeroMsgOnce = true;
             }
+            ptz_started = true;
             attitude_control->input_euler_angle_roll_pitch_yaw(0.0, 0.0, yaw_cd, true);
         }
         // Otherwise, use Guided mode for position control in 2D
@@ -1345,7 +1411,7 @@ bool ModeThrow::is_quad_dropping() // Returns true if speed > 10 cm/s
 bool ModeThrow::is_quad_touching_ground() // Returns true if
 {
     // bool condition1 = ( ( ahrs.get_gyro_latest().length() ) >= 3.1416 ); // Spike in angular rate (rad/s)
-    bool condition2 = ((ahrs.get_accel().length()) >= 1.65 * 9.81); // Spike in acceleration
+    bool condition2 = ((ahrs.get_accel().length()) >= 2.2 * 9.81); // Spike in acceleration
     // bool condition3 = ( speedZ <= XY ); // speed?
     return condition2;
 }

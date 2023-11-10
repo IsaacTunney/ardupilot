@@ -1731,6 +1731,7 @@ private:
     bool sentPitchToZeroMsgOnce;
     bool sentCommitMsgOnce;
     bool sentCancelMsgOnce;
+    bool ptz_started;
 
 };
 
