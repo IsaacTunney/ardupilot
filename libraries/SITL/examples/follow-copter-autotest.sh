@@ -75,9 +75,8 @@ mkdir -p copter$SYSID
 
 cat <<EOF > copter$SYSID/leader.parm
 SYSID_THISMAV   $SYSID
-FRAME_TYPE      1
-LOG_DISARMED    1
 SIM_RATE_HZ     $SIM_RATE
+FRAME_TYPE      1
 
 FLTMODE1        0
 FLTMODE2        0
@@ -103,6 +102,9 @@ SIM_GPS_VERR_X	0.05
 SIM_GPS_VERR_Y	0.05
 SIM_GPS_VERR_Z	0.05
 
+LOG_DISARMED    1
+LOG_BITMASK     145405
+
 EOF
 
 # Create parameter file for the follower in the subdir (copter1)
@@ -113,9 +115,9 @@ mkdir -p copter$SYSID
 
 cat <<EOF > copter$SYSID/follow.parm
 SYSID_THISMAV   $SYSID
-LOG_DISARMED    1
-FRAME_TYPE      1
 SIM_RATE_HZ     $SIM_RATE
+FRAME_TYPE      1
+
 
 AUTO_OPTIONS    2
 
@@ -276,6 +278,7 @@ PSC_VELZ_P      8
 
 TERRAIN_ENABLE  0
 
+LOG_DISARMED    1
 LOG_BITMASK     145405
 
 MOT_PWM_MAX     2000
