@@ -459,6 +459,7 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
     uint16_t ticks = AP::scheduler().ticks();
     if (last_ticks != ticks) {
         last_ticks = ticks;
+        AP::sitl()->Log_Write_SIMSTATE();
 // @LoggerMessage: SIM2
 // @Description: Additional simulator state
 // @Field: TimeUS: Time since system startup

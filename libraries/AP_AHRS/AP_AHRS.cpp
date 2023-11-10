@@ -3149,9 +3149,9 @@ void AP_AHRS::Log_Write()
     Write_AHRS2();
     Write_POS();
 
-#if AP_AHRS_SIM_ENABLED
-    AP::sitl()->Log_Write_SIMSTATE();
-#endif
+// #if AP_AHRS_SIM_ENABLED
+//     AP::sitl()->Log_Write_SIMSTATE();
+// #endif
 }
 
 // check if non-compass sensor is providing yaw.  Allows compass pre-arm checks to be bypassed
