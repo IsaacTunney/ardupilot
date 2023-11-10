@@ -520,29 +520,24 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
         last_log_ms = now;
     }
 
-    // If we have target lock, check dist_vec.z and decide when to do PTZ maneuver.
+    // If we have target lock, calculate the time until impact and the time required for the PTZ maneuver completion.
     // If we lose target lock, decide if you commit or cancel based on last known dist_vec.z.
     // If dist_vec.z < 1 m, commit to landing (either before or after PTZ, it doesn't matter)
     // Also count how many loops we make without target lock and estimate target state for these loops.
     // Allow for X number of loops to happen before cancelling the sequence.
     if (target_was_acquired)
-    {
-        // dist_vec.z // in m
-        // g.land_ptz_hgt_m
-        // fabsf(pos_control->get_max_speed_down_cms())
-        // pos_control->get_max_accel_z_cmss()
-        // ahrs.get_velocity_NED(vel_of_follower) // in m/s
-        // g.land_speed in cm/s
-        // ahrs.pitch_sensor // in centideg
-        // max_ang_acc = 1485 deg/s
-        // max_ang_vel = 250 deg/s
+    {   
         float dt_to_impact = 10;
         float dt_for_ptz_maneuver = 0.3;
         
         if (ptz_started == false && ahrs.get_velocity_NED(vel_of_follower))
-        {
+        {   
+            // TIME BEFORE IMPACT CALCULATIONS
             float max_accel_z_ms = fabsf(pos_control->get_max_accel_z_cmss())/100.0f;
             float max_vel_z_ms = g.land_speed/100.0f;
+
+            // If LAND_PTZ_HGT_M is set to something other than 0, it is substracted from the current height of the drone
+            // For example, if we want the PTZ to finish 1 m above the impact, then we want to find the time to impact for a descent 1m less high than our current height
             float height_to_use = dist_vec.z - g.land_ptz_hgt_m;
 
             // Impact velocity reached if constant acceleration
@@ -569,29 +564,37 @@ void ModeThrow::follow_target_2D_pitch_to_zero()
                 dt_to_impact = dt_to_max_vel + dt_at_cnst_vel;
             }
 
-            float max_ang_acc = 1485.0f;    // deg/s/s
-            float max_ang_vel = 250.0f;     // deg/s
+            // TIME NECESSARY FOR PTZ MANEUVER COMPLETION
+            float max_ang_acc = 1485.0f;    // deg/s/s (pitch acceleration during PTZ maneuver as observed in flight logs)
+            float max_ang_vel = 250.0f;     // deg/s   (maximum pitch rate target during PTZ maneuver as observed in flight logs)
             float current_pitch = fabsf(ahrs.pitch_sensor/100.f);  // deg
 
+            // Time required to accelerate to the maximum pitch rate, and pitch change during that acceleration
             float dt_to_reach_max_vel = max_ang_vel/max_ang_acc;
             float pitch_change_during_ang_acc = dt_to_reach_max_vel*max_ang_vel/2;
 
-            if (pitch_change_during_ang_acc < current_pitch/2)
+            // If this pitch change (doubled, since the same pitch change will happen when decelerating from the maximum rate to 0 deg/s) is less than the current pitch,
+            // then we will reach the maximum pitch rate during the maneuver (the current pitch is high enough to to reach the maximum pitch rate during the maneuver)
+            if (pitch_change_during_ang_acc*2 < current_pitch)
             {
+                // Pitch change required at the constant max pitch rate
                 float pitch_change_at_cst_ang_vel = current_pitch-2*pitch_change_during_ang_acc;
+                // Time required for this pitch change
                 float dt_cst_ang_vel = pitch_change_at_cst_ang_vel/max_ang_vel;
+                // Total time required for whole maneuver completion
                 dt_for_ptz_maneuver = 2*dt_to_reach_max_vel + dt_cst_ang_vel;
             }
+            // If the current pitch is low enough that the drone won't reach the maximum pitch rate during the maneuver
             else
             {
-                // gcs().send_text(MAV_SEVERITY_INFO, "cant do srqt of: %4.3f ", current_pitch/max_ang_acc);
+                // Total time required for whole maneuver completion
                 dt_for_ptz_maneuver = 2*safe_sqrt(current_pitch/max_ang_acc);
             }
             // if (runCount % 100 == 0) { gcs().send_text(MAV_SEVERITY_INFO, "dt_to_impact: %4.3f s, dt_for_ptz_maneuver: %4.3f s", dt_to_impact, dt_for_ptz_maneuver); }
         }
         
         // When desired height for pitch-to-zero is reached, switch to attitude control
-        // if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters)
+        // if (dist_vec.z <= g.land_ptz_hgt_m) // Positive axis is pointing down (in meters) THIS IS THE OLD METHOD OF STARTING PTZ
         if (dt_for_ptz_maneuver >= dt_to_impact || ptz_started==true)
         {
             if (sentPitchToZeroMsgOnce==false)
