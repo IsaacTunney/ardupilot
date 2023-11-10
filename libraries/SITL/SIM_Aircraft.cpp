@@ -472,12 +472,14 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
 // @Field: As: Airspeed
         Vector3d pos = get_position_relhome();
         Vector3f vel = get_velocity_ef();
-        AP::logger().WriteStreaming("SIM2", "TimeUS,PN,PE,PD,VN,VE,VD,As", "smmmnnnn", "F-------",
-                                    "Qdddffff",
+        Vector3f gyrolog = get_gyro();
+        AP::logger().WriteStreaming("SIM2", "TimeUS,PN,PE,PD,VN,VE,VD,As,rateR,rateP,rateY", "smmmnnnnkkk", "F----------",
+                                    "Qdddffffddd",
                                     AP_HAL::micros64(),
                                     pos.x, pos.y, pos.z,
                                     vel.x, vel.y, vel.z,
-                                    airspeed_pitot);
+                                    airspeed_pitot,
+                                    gyrolog.x, gyrolog.y, gyrolog.z);
     }
 }
 
