@@ -1,6 +1,6 @@
 function [SolutionToAlgebraicEquations,Output] = Quad3D_Algebraic(t, Params, State, Command)
 %===========================================================================
-% File: Quad3D_Algebraic.m created Nov 08 2023 by MotionGenesis 6.1.
+% File: Quad3D_Algebraic.m created Nov 09 2023 by MotionGenesis 6.1.
 % Portions copyright (c) 2009-2021 Motion Genesis LLC.  Rights reserved.
 % MotionGenesis Basic Research/Vanilla Licensee: John Bass. (until October 2025).
 % Paid-up MotionGenesis Basic Research/Vanilla licensees are granted the right
@@ -16,8 +16,9 @@ function [SolutionToAlgebraicEquations,Output] = Quad3D_Algebraic(t, Params, Sta
 %===========================================================================
 I1Dt=0; I2Dt=0; I3Dt=0; I4Dt=0; pDt=0; qDt=0; rDt=0; w1Dt=0; w2Dt=0; w3Dt=0; w4Dt=0; xDDt=0; yDDt=0; zDDt=0; Area=0; Thr1=0; Thr2=0;
 Thr3=0; Thr4=0; Tor1=0; Tor2=0; Tor3=0; Tor4=0; batt_current=0; batt_dropped_voltage=0; Command_V1=0; Command_V2=0; Command_V3=0;
-Command_V4=0; Command_w1=0; Command_w2=0; Command_w3=0; Command_w4=0; drag=0; TorAccel1=0; TorAccel2=0; TorAccel3=0; TorAccel4=0;
-TorMec1=0; TorMec2=0; TorMec3=0; TorMec4=0; V_BEMF1=0; V_BEMF2=0; V_BEMF3=0; V_BEMF4=0; V_diff_1=0; V_diff_2=0; V_diff_3=0; V_diff_4=0;
+Command_V4=0; Command_w1=0; Command_w2=0; Command_w3=0; Command_w4=0; drag=0; planarAirspeed=0; thrCorrFactor=0; tilt=0; TorAccel1=0;
+TorAccel2=0; TorAccel3=0; TorAccel4=0; TorMec1=0; TorMec2=0; TorMec3=0; TorMec4=0; V_BEMF1=0; V_BEMF2=0; V_BEMF3=0; V_BEMF4=0; V_diff_1=0;
+V_diff_2=0; V_diff_3=0; V_diff_4=0;
 
 
 %-------------------------------+--------------------------+-------------------+-----------------
@@ -42,14 +43,20 @@ b                               =  Params.b;               % N*m/(rad/s)        
 L                               =  Params.L;               % Henry               Constant
 Res                             =  Params.Res;             % Ohms                Constant
 
-efpa0                           =  Params.efpa0;           % UNITS               Constant
-efpa1                           =  Params.efpa1;           % UNITS               Constant
+thrVelCoeff                     =  Params.thrVelCoeff;     % UNITS               Constant
+efpa0_tilt                      =  Params.efpa0_tilt;      % UNITS               Constant
+efpa1_tilt                      =  Params.efpa1_tilt;      % UNITS               Constant
+efpa2_tilt                      =  Params.efpa2_tilt;      % UNITS               Constant
+efpa0_vel                       =  Params.efpa0_vel;       % UNITS               Constant
+efpa1_vel                       =  Params.efpa1_vel;       % UNITS               Constant
 Area                            =  Params.Area;            % m^2                 Constant
 Cd                              =  Params.Cd;              % NoUnits             Constant
 rho                             =  Params.rho;             % kg/m^3              Constant
 
 batt_resistance                 =  Params.batt_resistance; % Ohms                Constant
 batt_voltage                    =  Params.batt_voltage;    % Volt                Constant
+
+
 
 e0                              =  State(1);               % UNITS               Initial Value
 e1                              =  State(2);               % UNITS               Initial Value
@@ -91,18 +98,21 @@ Output = CalculateOutput;
 function SolutionToAlgebraicEquations = DoCalculations
 %===========================================================================
 planarAirspeed = sqrt((WindVel*sin(qW)-yDt)^2+(WindVel*cos(qW)-xDt)^2);
-thrCorrFactor = 1 - 0.01*planarAirspeed;
+thrCorrFactor = 1 - thrVelCoeff*planarAirspeed;
 thrCorrFactor = min([1, max([0, thrCorrFactor])]);
-Thr1 = thrCorrFactor*kTh*w1^2; 
-Thr2 = thrCorrFactor*kTh*w2^2;
-Thr3 = thrCorrFactor*kTh*w3^2;
-Thr4 = thrCorrFactor*kTh*w4^2;
+
+Thr1 = kTh*w1^2*thrCorrFactor;
+Thr2 = kTh*w2^2*thrCorrFactor;
+Thr3 = kTh*w3^2*thrCorrFactor;
+Thr4 = kTh*w4^2*thrCorrFactor;
 Tor1 = kTo*w1^2;
 Tor2 = kTo*w2^2;
 Tor3 = kTo*w3^2;
 Tor4 = kTo*w4^2;
 
-Area = efpa0 + efpa1*sqrt((WindVel*sin(qW)-yDt)^2+(WindVel*cos(qW)-xDt)^2);
+tilt = acos(-1+2*e0^2+2*e3^2);
+% Area = efpa0_vel + efpa1_vel*planarAirspeed;
+Area = efpa0_tilt + efpa1_tilt*tilt + efpa2_tilt*tilt^2;
 drag = 0.5*Cd*rho*Area*(WindVel^2+xDt^2+yDt^2+zDt^2-2*WindVel*sin(qW)*yDt-2*WindVel*cos(qW)*xDt);
 
 batt_current = I1 + I2 + I3 + I4;
@@ -123,16 +133,19 @@ V_BEMF1 = kv*w1;
 V_diff_1 = Command_V1 - V_BEMF1;
 TorMec1 = kt*I1;
 TorAccel1 = TorMec1 - Tor1;
+
 Command_V2 = kv*Command_w2*batt_dropped_voltage/batt_voltage;
 V_BEMF2 = kv*w2;
 V_diff_2 = Command_V2 - V_BEMF2;
 TorMec2 = kt*I2;
 TorAccel2 = TorMec2 - Tor2;
+
 Command_V3 = kv*Command_w3*batt_dropped_voltage/batt_voltage;
 V_BEMF3 = kv*w3;
 V_diff_3 = Command_V3 - V_BEMF3;
 TorMec3 = kt*I3;
 TorAccel3 = TorMec3 - Tor3;
+
 Command_V4 = kv*Command_w4*batt_dropped_voltage/batt_voltage;
 V_BEMF4 = kv*w4;
 V_diff_4 = Command_V4 - V_BEMF4;

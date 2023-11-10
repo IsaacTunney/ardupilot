@@ -43,8 +43,14 @@ Specified Tor1, Tor2, Tor3, Tor4
 Variable w1', w2', w3', w4'
 Variable I1', I2', I3', I4'
 
-Constant efpa0
-Constant efpa1
+Constant efpa0_vel
+Constant efpa1_vel
+
+Constant efpa0_tilt
+Constant efpa1_tilt
+Constant efpa2_tilt
+
+Constant thrVelCoeff
 
 Specified qW												% Wind angle
 Specified WindVel											% Wind speed
@@ -85,8 +91,17 @@ airspeed> = Bcm.GetVelocity(N)-Wo.GetVelocity(N)
 
 
 %----------------------------------
+% 	Planar Airspeed
+planarAirspeed = sqrt(dot(airspeed>, nx>)^2 + dot(airspeed>, ny>)^2)
+thrCorrFactor = 1 - thrVelCoeff*planarAirspeed
+
+
+%----------------------------------
 % 	Equivalent Flat-plate Area
-Area = efpa0 + efpa1*sqrt(dot(airspeed>, nx>)^2 + dot(airspeed>, ny>)^2)
+tilt = acos(dot(nz>, bz>)/(GetMagnitude(nz>)*GetMagnitude(bz>)))
+
+Area = efpa0_vel + efpa1_vel*planarAirspeed
+Area = efpa0_tilt + efpa1_tilt*tilt + efpa2_tilt*tilt^2
 
 
 %----------------------------------
@@ -99,6 +114,7 @@ drag = 0.5*rho*Area*Cd*(GetMagnitude(airspeed>))^2
 batt_current = I1+I2+I3+I4
 batt_dropped_voltage = batt_voltage - batt_resistance * batt_current
 
+
 %--------------------------------
 % Rotor Model 1
 Command_w1 = c0 + c1*Command_percent1
@@ -106,7 +122,7 @@ Command_V1 = Command_w1*Kv * (batt_dropped_voltage/batt_voltage)
 
 V_BEMF1 = w1*Kv
 V_diff_1 = Command_V1 - V_BEMF1
-Thr1 = kTh*w1^2
+Thr1 = thrCorrFactor*kTh*w1^2
 Tor1 = kTo*w1^2
 TorMec1 = I1*Kt
 TorAccel1 = TorMec1 - Tor1
@@ -119,7 +135,7 @@ Command_V2 = Command_w2*Kv * (batt_dropped_voltage/batt_voltage)
 
 V_BEMF2 = w2*Kv
 V_diff_2 = Command_V2 - V_BEMF2
-Thr2 = kTh*w2^2
+Thr2 = thrCorrFactor*kTh*w2^2
 Tor2 = kTo*w2^2
 TorMec2 = I2*Kt
 TorAccel2 = TorMec2 - Tor2
@@ -132,7 +148,7 @@ Command_V3 = Command_w3*Kv * (batt_dropped_voltage/batt_voltage)
 
 V_BEMF3 = w3*Kv
 V_diff_3 = Command_V3 - V_BEMF3
-Thr3 = kTh*w3^2
+Thr3 = thrCorrFactor*kTh*w3^2
 Tor3 = kTo*w3^2
 TorMec3 = I3*Kt
 TorAccel3 = TorMec3 - Tor3
@@ -145,7 +161,7 @@ Command_V4 = Command_w4*Kv * (batt_dropped_voltage/batt_voltage)
 
 V_BEMF4 = w4*Kv
 V_diff_4 = Command_V4 - V_BEMF4
-Thr4 = kTh*w4^2
+Thr4 = thrCorrFactor*kTh*w4^2
 Tor4 = kTo*w4^2
 TorMec4 = I4*Kt
 TorAccel4 = TorMec4 - Tor4

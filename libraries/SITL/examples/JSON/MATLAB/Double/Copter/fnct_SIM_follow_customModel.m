@@ -14,6 +14,7 @@ params.dxm  = 0.16;
 params.dym  = 0.16;
 params.dzm  = 0.05;
 
+params.thrVelCoeff = 0.01;
 corrFactor  = 0.8;
 params.kTh  = 1.4738e-05 * corrFactor;             % N/(rad/s)
 params.kTo  = 2.5430e-07;             % N*m/(rad/s)
@@ -26,8 +27,11 @@ params.kt   = 0.0091;                 % N*m/Amp
 params.kv   = 0.0091;                 % Volt/(rad/s)
 params.b    = 1.0e-9;                 % N*m/(rad/s)
 
-params.efpa0 =  0.0998675;
-params.efpa1 = -8.5301e-04;
+params.efpa0_tilt =  0.0921351;
+params.efpa1_tilt = -0.00434747;
+params.efpa2_tilt = -0.0115866;
+params.efpa0_vel  =  0.0998675;
+params.efpa1_vel  = -8.5301e-04;
 params.Area = 0.08;
 params.Cd   = 1;
 
