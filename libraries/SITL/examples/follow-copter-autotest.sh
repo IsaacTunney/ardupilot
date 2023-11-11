@@ -22,7 +22,7 @@ HOMELONG=-73.44609269
 HOMEALT=60.0
 HEADING=87.5
 
-SIM_RATE=800
+SIM_RATE=1200
 
 # Set GCS_IP address and JSON_IP to link to MATLAB
 if [ -z $1 ]; then
@@ -69,7 +69,7 @@ BASE_DEFAULTS="$ROOTDIR/Tools/autotest/default_params/copter.parm"
 
 # Create parameter file for the leader in the subdir (copter2)
 SYSID=2
-echo "Starting copter $SYSID"
+echo "Creating copter $SYSID param file"
 mkdir -p copter$SYSID
 
 
@@ -109,7 +109,7 @@ EOF
 
 # Create parameter file for the follower in the subdir (copter1)
 SYSID=1
-echo "Starting copter $SYSID"
+echo "Creating copter $SYSID param file"
 mkdir -p copter$SYSID
 
 
