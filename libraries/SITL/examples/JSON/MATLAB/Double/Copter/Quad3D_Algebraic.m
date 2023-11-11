@@ -1,6 +1,6 @@
 function [SolutionToAlgebraicEquations,Output] = Quad3D_Algebraic(t, Params, State, Command)
 %===========================================================================
-% File: Quad3D_Algebraic.m created Nov 09 2023 by MotionGenesis 6.1.
+% File: Quad3D_Algebraic.m created Nov 11 2023 by MotionGenesis 6.1.
 % Portions copyright (c) 2009-2021 Motion Genesis LLC.  Rights reserved.
 % MotionGenesis Basic Research/Vanilla Licensee: John Bass. (until October 2025).
 % Paid-up MotionGenesis Basic Research/Vanilla licensees are granted the right
@@ -15,10 +15,10 @@ function [SolutionToAlgebraicEquations,Output] = Quad3D_Algebraic(t, Params, Sta
 % in connection with the software or the use or other dealings in the software. 
 %===========================================================================
 I1Dt=0; I2Dt=0; I3Dt=0; I4Dt=0; pDt=0; qDt=0; rDt=0; w1Dt=0; w2Dt=0; w3Dt=0; w4Dt=0; xDDt=0; yDDt=0; zDDt=0; Area=0; Thr1=0; Thr2=0;
-Thr3=0; Thr4=0; Tor1=0; Tor2=0; Tor3=0; Tor4=0; batt_current=0; batt_dropped_voltage=0; Command_V1=0; Command_V2=0; Command_V3=0;
-Command_V4=0; Command_w1=0; Command_w2=0; Command_w3=0; Command_w4=0; drag=0; planarAirspeed=0; thrCorrFactor=0; tilt=0; TorAccel1=0;
-TorAccel2=0; TorAccel3=0; TorAccel4=0; TorMec1=0; TorMec2=0; TorMec3=0; TorMec4=0; V_BEMF1=0; V_BEMF2=0; V_BEMF3=0; V_BEMF4=0; V_diff_1=0;
-V_diff_2=0; V_diff_3=0; V_diff_4=0;
+Thr3=0; Thr4=0; Tor1=0; Tor2=0; Tor3=0; Tor4=0; airspeedMag=0; batt_current=0; batt_dropped_voltage=0; Command_V1=0; Command_V2=0;
+Command_V3=0; Command_V4=0; Command_w1=0; Command_w2=0; Command_w3=0; Command_w4=0; drag=0; planarAirspeed=0; thrCorrFactor=0; tilt=0;
+TorAccel1=0; TorAccel2=0; TorAccel3=0; TorAccel4=0; TorMec1=0; TorMec2=0; TorMec3=0; TorMec4=0; V_BEMF1=0; V_BEMF2=0; V_BEMF3=0; V_BEMF4=0;
+V_diff_1=0; V_diff_2=0; V_diff_3=0; V_diff_4=0; xAirspeed=0; yAirspeed=0;
 
 
 %-------------------------------+--------------------------+-------------------+-----------------
@@ -212,6 +212,10 @@ I2Dt = SolutionToAlgebraicEquations(12);
 I3Dt = SolutionToAlgebraicEquations(13);
 I4Dt = SolutionToAlgebraicEquations(14);
 
+airspeedMag = sqrt(WindVel^2+xDt^2+yDt^2+zDt^2-2*WindVel*sin(qW)*yDt-2*WindVel*cos(qW)*xDt);
+xAirspeed = xDt - WindVel*cos(qW);
+yAirspeed = yDt - WindVel*sin(qW);
+
 
 end
 
@@ -219,7 +223,7 @@ end
 %===========================================================================
 function Output = CalculateOutput
 %===========================================================================
-Output = zeros( 1, 46 );
+Output = zeros( 1, 50 );
 Output(1) = t;
 Output(2) = x;
 Output(3) = y;
@@ -269,75 +273,12 @@ Output(44) = I4;
 
 Output(45) = qW;
 Output(46) = WindVel;
+
+Output(47) = airspeedMag;
+Output(48) = xAirspeed;
+Output(49) = yAirspeed;
+Output(50) = zDt;
 end
-
-
-%===========================================================================
-function OutputToScreenOrFile( Output, shouldPrintToScreen, shouldPrintToFile )
-%===========================================================================
-persistent FileIdentifier hasHeaderInformationBeenWritten;
-
-if( isempty(Output) ),
-   if( ~isempty(FileIdentifier) ),
-      for( i = 1 : 4 ),  fclose( FileIdentifier(i) );  end
-      clear FileIdentifier;
-      fprintf( 1, '\n Output is in the files Quad3D_Algebraic.i  (i=1,2,3,4)\n' );
-   end
-   if( shouldPrintToScreen ),
-      fprintf( 1, '\n Output returned to the calling function:\n' );
-      fprintf( 1, ' x'''' (UNITS)    y'''' (UNITS)    z'''' (UNITS)    p'' (UNITS)    q'' (UNITS)    r'' (UNITS)    w1'' (UNITS)    w2'' (UNITS)    w3'' (UNITS)    w4'' (UNITS)    I1'' (UNITS)    I2'' (UNITS)    I3'' (UNITS)    I4'' (UNITS) ... \n\n' );
-   end
-   clear hasHeaderInformationBeenWritten;
-   return;
-end
-
-if( isempty(hasHeaderInformationBeenWritten) ),
-   if( shouldPrintToScreen ),
-      fprintf( 1,                '%%       t              x              y              z             x''             y''             z''             x''''            y''''            z''''            e0             e1             e2             e3              p              q              r             p''             q''             r''\n' );
-      fprintf( 1,                '%%     (sec)           (m)            (m)            (m)           (m/s)          (m/s)          (m/s)         (m/s^2)        (m/s^2)        (m/s^2)        (UNITS)        (UNITS)        (UNITS)        (UNITS)        (rad/s)        (rad/s)        (rad/s)       (rad/s^2)      (rad/s^2)      (rad/s^2)\n\n' );
-   end
-   if( shouldPrintToFile && isempty(FileIdentifier) ),
-      FileIdentifier = zeros( 1, 4 );
-      FileIdentifier(1) = fopen('Quad3D_Algebraic.1', 'wt');   if( FileIdentifier(1) == -1 ), error('Error: unable to open file Quad3D_Algebraic.1'); end
-      fprintf(FileIdentifier(1), '%% FILE: Quad3D_Algebraic.1\n%%\n' );
-      fprintf(FileIdentifier(1), '%%       t              x              y              z             x''             y''             z''             x''''            y''''            z''''            e0             e1             e2             e3              p              q              r             p''             q''             r''\n' );
-      fprintf(FileIdentifier(1), '%%     (sec)           (m)            (m)            (m)           (m/s)          (m/s)          (m/s)         (m/s^2)        (m/s^2)        (m/s^2)        (UNITS)        (UNITS)        (UNITS)        (UNITS)        (rad/s)        (rad/s)        (rad/s)       (rad/s^2)      (rad/s^2)      (rad/s^2)\n\n' );
-      FileIdentifier(2) = fopen('Quad3D_Algebraic.2', 'wt');   if( FileIdentifier(2) == -1 ), error('Error: unable to open file Quad3D_Algebraic.2'); end
-      fprintf(FileIdentifier(2), '%% FILE: Quad3D_Algebraic.2\n%%\n' );
-      fprintf(FileIdentifier(2), '%%     Thr1           Thr2           Thr3           Thr4           Tor1           Tor2           Tor3           Tor4          TorMec1        TorMec2        TorMec3        TorMec4\n' );
-      fprintf(FileIdentifier(2), '%%      (N)            (N)            (N)            (N)           (N*m)          (N*m)          (N*m)          (N*m)          (N*m)          (N*m)          (N*m)          (N*m)\n\n' );
-      FileIdentifier(3) = fopen('Quad3D_Algebraic.3', 'wt');   if( FileIdentifier(3) == -1 ), error('Error: unable to open file Quad3D_Algebraic.3'); end
-      fprintf(FileIdentifier(3), '%% FILE: Quad3D_Algebraic.3\n%%\n' );
-      fprintf(FileIdentifier(3), '%%      w1             w2             w3             w4             w1''            w2''            w3''            w4''            I1             I2             I3             I4\n' );
-      fprintf(FileIdentifier(3), '%%    (rad/s)        (rad/s)        (rad/s)        (rad/s)       (rad/s^2)      (rad/s^2)      (rad/s^2)      (rad/s^2)       (Amps)         (Amps)         (Amps)         (Amps)\n\n' );
-      FileIdentifier(4) = fopen('Quad3D_Algebraic.4', 'wt');   if( FileIdentifier(4) == -1 ), error('Error: unable to open file Quad3D_Algebraic.4'); end
-      fprintf(FileIdentifier(4), '%% FILE: Quad3D_Algebraic.4\n%%\n' );
-      fprintf(FileIdentifier(4), '%%      qW           WindVel\n' );
-      fprintf(FileIdentifier(4), '%%     (rad)          (m/s)\n\n' );
-   end
-   hasHeaderInformationBeenWritten = 1;
-end
-
-if( shouldPrintToScreen ), WriteNumericalData( 1,                 Output(1:20) );  end
-if( shouldPrintToFile ),   WriteNumericalData( FileIdentifier(1), Output(1:20) );  end
-if( shouldPrintToFile ),   WriteNumericalData( FileIdentifier(2), Output(21:32) );  end
-if( shouldPrintToFile ),   WriteNumericalData( FileIdentifier(3), Output(33:44) );  end
-if( shouldPrintToFile ),   WriteNumericalData( FileIdentifier(4), Output(45:46) );  end
-end
-
-
-%===========================================================================
-function WriteNumericalData( fileIdentifier, Output )
-%===========================================================================
-numberOfOutputQuantities = length( Output );
-if( numberOfOutputQuantities > 0 ),
-   for( i = 1 : numberOfOutputQuantities ),
-      fprintf( fileIdentifier, ' %- 14.6E', Output(i) );
-   end
-   fprintf( fileIdentifier, '\n' );
-end
-end
-
 
 %=========================================
 end    % End of function Quad3D_Algebraic

@@ -479,7 +479,7 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
                                     pos.x, pos.y, pos.z,
                                     vel.x, vel.y, vel.z,
                                     airspeed_pitot,
-                                    gyrolog.x, gyrolog.y, gyrolog.z);
+                                    degrees(gyrolog.x), degrees(gyrolog.y), degrees(gyrolog.z));
     }
 }
 

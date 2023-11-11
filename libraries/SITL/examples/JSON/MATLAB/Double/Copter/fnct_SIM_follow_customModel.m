@@ -16,7 +16,7 @@ params.dzm  = 0.05;
 
 params.thrVelCoeff = 0.01;
 corrFactor  = 0.8;
-params.kTh  = 1.4738e-05 * corrFactor;             % N/(rad/s)
+params.kTh  = 1.4738e-05 * corrFactor;% N/(rad/s)
 params.kTo  = 2.5430e-07;             % N*m/(rad/s)
 params.c0   = -75.23;
 params.c1   = 26.44;
@@ -190,6 +190,8 @@ if state.position(3) >= 0
     state.velocity = [0;0;0];
     state.gyro = [0;0;0];
 end
+
+state.airspeed = Output(47);
 
 state.STATE(16) = state.position(1); % x (N)
 state.STATE(17) = state.position(2); % y (E)

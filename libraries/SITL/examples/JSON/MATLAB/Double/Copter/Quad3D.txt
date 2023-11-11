@@ -204,9 +204,10 @@ zM4 = dot(M4.GetPosition(No),nz>)
 % yDrag = dot(dragForce>,ny>)
 % zDrag = dot(dragForce>,nz>)
 
-% xAirspeed = dot(airspeed>,nx>)
-% yAirspeed = dot(airspeed>,ny>)
-% zAirspeed = dot(airspeed>,nz>)
+airspeedMag = GetMagnitude(airspeed>)
+xAirspeed = dot(airspeed>,nx>)
+yAirspeed = dot(airspeed>,ny>)
+zAirspeed = dot(airspeed>,nz>)
 
 
 %--------------------------------
@@ -242,7 +243,7 @@ Output Thr1 N, Thr2 N, Thr3 N, Thr4 N, Tor1 N*m, Tor2 N*m, Tor3 N*m, Tor4 N*m, T
 Output w1 rad/s, w2 rad/s, w3 rad/s, w4 rad/s, w1' rad/s^2, w2' rad/s^2, w3' rad/s^2, w4' rad/s^2, I1 Amps, I2 Amps, I3 Amps, I4 Amps
 Output qW rad, WindVel m/s
 % Output drag N, xDrag N, yDrag N, zDrag N
-% Output xAirspeed m/s, yAirspeed m/s, zAirspeed m/s
+Output airspeedMag m/s, xAirspeed m/s, yAirspeed m/s, zAirspeed m/s
 
 
 % ODE([Dynamics; Motor], x'', y'', z'', p', q', r', w1', w2', w3', w4', I1', I2', I3', I4') Quad3D_motorsTorque.m
