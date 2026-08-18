@@ -604,6 +604,10 @@
  # define LAND_RVT_PWM_DEFAULT          1500  // default value for reverse thrust PWM
 #endif
 
+#ifndef LAND_RAMP_TIME_DEFAULT
+ # define LAND_RAMP_TIME_DEFAULT         5.0f  // default post-landing motor ramp time, in seconds
+#endif
+
 #ifndef LAND_SHUTDOWN_HEIGHT_DEFAULT
  # define LAND_SHUTDOWN_HEIGHT_DEFAULT  30    // default value for landing shutdown height, in cm
 #endif

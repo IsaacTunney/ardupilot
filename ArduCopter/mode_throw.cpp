@@ -53,6 +53,7 @@ bool ModeThrow::init(bool ignore_checks)
     shutdown_motors = false;
     activate_rvt_countertorque = false;
     activate_rvt = false;
+    motors->set_post_landing_ramp(false, 1);
     land_pause = false;
 
     rvt_duration = 6000;                                                                      // Duration of rvt after landing, milliseconds
@@ -120,8 +121,17 @@ bool ModeThrow::init(bool ignore_checks)
 
         return ModeGuided::init(ignore_checks);
     }
+    else if (g.land_type == POST)
+    {
+        gcs().send_text(MAV_SEVERITY_INFO, "Mode LANDING ON POSTS selected!");
+        gcs().send_text(MAV_SEVERITY_INFO, "Motor PWM range: %d to %d",
+            (int)motors->get_pwm_output_min(),
+            (int)motors->get_pwm_output_max());
+        return true;
+    }
     else
     {
+        gcs().send_text(MAV_SEVERITY_INFO, "Mode LANDING ON SLOPES selected!");
         return true;
     }
 }
@@ -133,6 +143,7 @@ void ModeThrow::exit()
     shutdown_motors = false;
     activate_rvt_countertorque = false;
     activate_rvt = false;
+    motors->set_post_landing_ramp(false, 1);
     attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
     gcs().send_text(MAV_SEVERITY_WARNING, "Exit mode landing");
 }
@@ -159,6 +170,10 @@ void ModeThrow::run()
         {
             landing_on_moving_vehicle_run();
         }
+        else if (g.land_type == POST)
+        {
+            landing_on_post_run();
+        }
         else
         {
             landing_with_gps_run();
@@ -166,7 +181,10 @@ void ModeThrow::run()
     }
     else
     {
-        landing_without_gps_run();
+        //Switch to NO possible landing if NO  GPS?
+        // landing_without_gps_run();
+        copter.set_mode(Mode::Number::ALT_HOLD, ModeReason::THROTTLE_LAND_ESCAPE);
+
     }
     lsmCount++;
     runCount++;
@@ -328,6 +346,41 @@ void ModeThrow::landing_on_moving_vehicle_run()
     }
     landingOnVehicle_previousState = landingOnVehicle_state;
 }
+
+// LAND CONTROLLER WITH GPS FOR LANDING ON POST
+// Frequency: 100hz or more
+void ModeThrow::landing_on_post_run()
+{
+    // Landing state machine:
+    run_landing_state_machine_on_post();
+
+    // Safety checks
+    // Disarm when the landing detector says we've landed
+    if (copter.ap.land_complete && motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE)
+    {
+        copter.arming.disarm(AP_Arming::Method::LANDED);
+        gcs().send_text(MAV_SEVERITY_INFO, "Ground idle detected; Disarming drone...");
+    }
+
+    // Flight controller during landing sequence:
+    if (is_disarmed_or_landed())
+    {
+        make_safe_ground_handling();
+        loiter_nav->init_target();
+    }
+    else // still flying
+    {
+        loiter_nav->clear_pilot_desired_acceleration();
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED); // set motors to full range
+        land_run_horiz_and_vert_control(land_pause);
+        
+        // Set boolean flag in the AP_Motors library to indicate to the motors_outputs when to activate reverse thrust
+        attitude_control->landing_controller_setRVT(shutdown_motors, activate_rvt, activate_rvt_countertorque, g.land_rvt_pwm);
+
+    }
+
+}
+
 
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
@@ -994,10 +1047,7 @@ void ModeThrow::run_landing_state_machine()
     {
     case INIT: // Make sure rangefinder readings are ok before allowing landing
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : INIT");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : INIT"); }
 
         shutdown_motors = false;
         activate_rvt_countertorque = false;
@@ -1022,10 +1072,7 @@ void ModeThrow::run_landing_state_machine()
 
     case DESCENT: // Normal descent with rangefinder detection
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : DESCENT");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : DESCENT"); }
 
         // height_above_ground_cm = copter.rangefinder_state.alt_cm_glitch_protected;
         if (use_rangefinder)
@@ -1069,10 +1116,7 @@ void ModeThrow::run_landing_state_machine()
 
     case DESCENT_WITHOUT_RF: // Descent without rangefinder - use IMU only to detect ground
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : DESCENT_WITHOUT_RF");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : DESCENT_WITHOUT_RF"); }
 
         if (is_quad_touching_ground())
         {
@@ -1084,10 +1128,7 @@ void ModeThrow::run_landing_state_machine()
 
     case COUNTDOWN: // Countdown to reach desired height (out of rangefinder's range)
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : COUNTDOWN");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : COUNTDOWN"); }
 
         countdown_chrono = millis() - countdown_start;
         // if (lsmCount%50 == 0) { gcs().send_text(MAV_SEVERITY_CRITICAL, "Countdown : %4.2f milliseconds", (double)countdown_chrono ); }
@@ -1109,10 +1150,7 @@ void ModeThrow::run_landing_state_machine()
 
     case DROPPING: // Drone is free falling
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : DROPPING");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : DROPPING"); }
 
         shutdown_motors = true;
         dropping_chrono = millis() - dropping_start;
@@ -1128,10 +1166,7 @@ void ModeThrow::run_landing_state_machine()
 
     case TOUCHING_GROUND: // Drone just hit the ground
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : TOUCHING GROUND");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : TOUCHING GROUND"); }
 
         state = RVT;
         rvt_start = millis();
@@ -1139,12 +1174,12 @@ void ModeThrow::run_landing_state_machine()
 
         break;
 
+    case THROTTLE_RAMP_DOWN:
+        break;
+
     case RVT: // Activate Full Reverse Thrust
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : RVT");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : RVT"); }
 
         shutdown_motors = false;
         activate_rvt_countertorque = false;
@@ -1173,10 +1208,7 @@ void ModeThrow::run_landing_state_machine()
 
     case FLIPPING: // Drone is flipping, but there is still time to recover
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_CRITICAL, "State : FLIPPING"); }
 
         activate_rvt = false;
         rvt_chrono = millis() - rvt_start;
@@ -1227,10 +1259,7 @@ void ModeThrow::run_landing_state_machine()
 
     case DONE: // Landing is done. Nothing else to do. Change mode to allow for takeoff.
 
-        if (lsmCount == 1)
-        {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : DONE");
-        }
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : DONE"); }
 
         // motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
         // motors->output();
@@ -1240,12 +1269,146 @@ void ModeThrow::run_landing_state_machine()
 
     case ABORT_LANDING: // Add "abort landing" functionalities at some point?
 
-        if (lsmCount == 1)
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : ABORT LANDING"); }
+
+        break;
+    }
+}
+
+void ModeThrow::run_landing_state_machine_on_post()
+{
+    switch (state)
+    {
+    case INIT: // Make sure rangefinder readings are ok before allowing landing
+
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : INIT"); }
+
+        shutdown_motors = false;
+        activate_rvt_countertorque = false;
+        activate_rvt = false;
+
+        state = DESCENT_WITHOUT_RF;
+        lsmCount = 0;
+
+        break;
+
+    case DESCENT:
+        break;
+
+    case DESCENT_WITHOUT_RF: // Descent without rangefinder - use IMU only to detect ground
+
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : DESCENT_WITHOUT_RF"); }
+
+        if (is_quad_touching_ground())
         {
-            gcs().send_text(MAV_SEVERITY_INFO, "State : ABORT LANDING");
+            state = TOUCHING_GROUND;
+            lsmCount = 0;
+        } // Safety au cas où touche sol avant la fin du countdown
+
+        break;
+    
+    case COUNTDOWN:
+        state = TOUCHING_GROUND;
+        break;
+
+    case DROPPING:
+        state = TOUCHING_GROUND;
+        break;
+
+    case TOUCHING_GROUND: // Drone just hit the post (a 1.65-G accel has been detected)
+
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : TOUCHING GROUND"); }
+
+        state = THROTTLE_RAMP_DOWN;
+        throttle_ramp_start_ms = millis();
+        lsmCount = 0;
+
+        break;
+
+    case THROTTLE_RAMP_DOWN: {
+
+        const uint32_t throttle_ramp_duration_ms = MAX(uint32_t(g.land_ramp_time * 1000.0f), 1U);
+
+        if (lsmCount == 1) {
+            gcs().send_text(MAV_SEVERITY_INFO, "State : THROTTLE_RAMP_DOWN");
+            gcs().send_text(MAV_SEVERITY_INFO, "Post ramp time: %.1f s", (double)g.land_ramp_time);
+            throttle_ramp_start_ms = millis();
+        }
+
+        shutdown_motors = false;
+        activate_rvt_countertorque = false;
+        activate_rvt = false;
+        motors->set_post_landing_ramp(true, throttle_ramp_duration_ms);
+
+        if (millis() - throttle_ramp_start_ms >= throttle_ramp_duration_ms) {
+            motors->set_post_landing_ramp(false, throttle_ramp_duration_ms);
+            // shutdown_motors = true;
+            motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
+            motors->output();
+            copter.arming.disarm(AP_Arming::Method::LANDED);
+            gcs().send_text(MAV_SEVERITY_INFO, "Post landing ramp complete; motors disarmed");
+            state = LANDED_BUT_STILL_ALERT;
+            lsmCount = 0;
         }
 
         break;
+    }
+
+    case RVT: // Activate Full Reverse Thrust
+
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : RVT"); }
+
+        shutdown_motors = false;
+        activate_rvt_countertorque = false;
+        activate_rvt = true; // Important to remember to set the RVT value to 0. 
+        rvt_chrono = millis() - rvt_start;
+        
+        break;
+
+        if (rvt_chrono > rvt_duration)
+        {
+            state = LANDED_BUT_STILL_ALERT;
+            lsmCount = 0;
+        } // Done with RVT, switch to LANDED state.
+
+        if (lsmCount % 100 == 0)
+        {
+            gcs().send_text(MAV_SEVERITY_INFO, "RVT Timer : %4.2f milliseconds", (double)rvt_chrono);
+        }
+
+        break;
+
+    case FLIPPING:
+        break;
+
+    case LANDED_BUT_STILL_ALERT: // Future work : Add the "staying alert" functionality in case icerberg is rotating
+
+        gcs().send_text(MAV_SEVERITY_INFO, "State : LANDED BUT STILL ALERT");
+
+        activate_rvt = false;
+        activate_rvt_countertorque = false;
+        shutdown_motors = false;
+
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
+        motors->output();
+        copter.arming.disarm(AP_Arming::Method::LANDED);
+        gcs().send_text(MAV_SEVERITY_INFO, "All motors disarmed...");
+
+        state = DONE;
+        lsmCount = 0;
+
+        break;
+
+    case DONE: // Landing is done. Nothing else to do. Change mode to allow for takeoff.
+
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : DONE"); }
+        break;
+
+    case ABORT_LANDING:
+
+        if (lsmCount == 1) { gcs().send_text(MAV_SEVERITY_INFO, "State : ABORT LANDING"); }
+        break;
+
     }
 }
 

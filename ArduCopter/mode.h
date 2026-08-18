@@ -1612,6 +1612,7 @@ public:
         ICE     = 1,
         BOAT    = 2,
         VEHICLE = 3,
+        POST    = 4,
     };
 
     enum state_stateMachine
@@ -1623,6 +1624,7 @@ public:
         DROPPING,
         TOUCHING_GROUND,
         RVT,
+        THROTTLE_RAMP_DOWN,
         FLIPPING,
         LANDED_BUT_STILL_ALERT,
         DONE,
@@ -1660,6 +1662,7 @@ private:
     void landing_with_gps_run();
     void landing_on_moving_vehicle_run();
     void landing_without_gps_run();
+    void landing_on_post_run();
 
     void follow_target_3D();
     void follow_target_2D();
@@ -1671,6 +1674,7 @@ private:
     bool RF_glitch_detected();
     bool drone_was_too_far_from_ground();
     void run_landing_state_machine();
+    void run_landing_state_machine_on_post();
     bool is_quad_dropping();
     bool is_quad_touching_ground();
     bool is_quad_tilting();
@@ -1709,6 +1713,8 @@ private:
     uint32_t rvt_duration;
     uint32_t rvt_start;
     uint32_t rvt_chrono;
+
+    uint32_t throttle_ramp_start_ms;
 
     bool     shutdown_motors;
     bool     activate_rvt;

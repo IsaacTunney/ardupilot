@@ -140,6 +140,7 @@ public:
     void                set_forward(float forward_in) { _forward_in = forward_in; }; // range -1 ~ +1
     void                set_lateral(float lateral_in) { _lateral_in = lateral_in; };     // range -1 ~ +1
     void                set_reverse_thrust(bool shutdown_motors, bool activate_rvt, bool activate_rvt_ct, uint16_t rvt_pwm){ _shutdown_motors = shutdown_motors, _activate_rvt = activate_rvt;  _activate_rvt_ct = activate_rvt_ct; _rvt_pwm = rvt_pwm; };     // REVERSE THRUST ADDED (CUSTOM FUNCTION)
+    void                set_post_landing_ramp(bool active, uint32_t duration_ms) { _post_landing_ramp = active; _post_landing_ramp_ms = MAX(duration_ms, 1U); }
 
     // for 6DoF vehicles, sets the roll and pitch offset, this rotates the thrust vector in body frame
     virtual void        set_roll_pitch(float roll_deg, float pitch_deg) {};
@@ -317,6 +318,8 @@ protected:
     bool                _activate_rvt;              // Activated reverse thrust - CUSTOM LANDING MODE
     bool                _activate_rvt_ct;           // Activated reverse thrust for countertorque feature - CUSTOM LANDING MDOE
     uint16_t            _rvt_pwm;                   // PWM sent to motors during landing - CUSTOM LANDING MODE
+    bool                _post_landing_ramp;         // Ramp each motor to bidirectional neutral after landing on a post
+    uint32_t            _post_landing_ramp_ms;      // Duration of the post landing ramp
 
     // air pressure compensation variables
     float               _air_density_ratio;     // air density / sea level density - decreases in altitude

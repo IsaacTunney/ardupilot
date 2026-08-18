@@ -180,6 +180,11 @@ void AP_MotorsMatrix::output_to_motors()
             break;
     }
 
+    const bool starting_post_landing_ramp = _post_landing_ramp && !_post_landing_ramp_started;
+    if (starting_post_landing_ramp) {
+        _post_landing_ramp_start_ms = AP_HAL::millis();
+    }
+
     for (i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++)
     {
         float pwm_output;
@@ -198,7 +203,18 @@ void AP_MotorsMatrix::output_to_motors()
             }
             else
             {
-                if (_activate_rvt) // Reverse thrust
+                if (_post_landing_ramp)
+                {
+                    // Capture each mixed motor output on entry so roll/pitch/yaw
+                    // differences do not cause a step when the ramp begins.
+                    const float normal_pwm = get_pwm_output_min() + (get_pwm_output_max() - get_pwm_output_min()) * _actuator[i];
+                    if (starting_post_landing_ramp) {
+                        _post_landing_ramp_start_pwm[i] = MAX(normal_pwm, float(POST_LANDING_NEUTRAL_PWM));
+                    }
+                    const float progress = constrain_float(float(AP_HAL::millis() - _post_landing_ramp_start_ms) / _post_landing_ramp_ms, 0.0f, 1.0f);
+                    pwm_output = linear_interpolate(_post_landing_ramp_start_pwm[i], POST_LANDING_NEUTRAL_PWM, progress, 0.0f, 1.0f);
+                }
+                else if (_activate_rvt) // Reverse thrust
                 {
                     pwm_output = _rvt_pwm; // Parameter used to set reverse thrust PWM
                 }
@@ -219,6 +235,12 @@ void AP_MotorsMatrix::output_to_motors()
             }
             rc_write(i, pwm_output);
         }
+    }
+
+    if (starting_post_landing_ramp) {
+        _post_landing_ramp_started = true;
+    } else if (!_post_landing_ramp) {
+        _post_landing_ramp_started = false;
     }
 }
 

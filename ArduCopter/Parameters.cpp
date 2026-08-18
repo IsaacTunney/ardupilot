@@ -112,6 +112,15 @@ const AP_Param::Info Copter::var_info[] = {
     // @Range: 1000 1500
     GSCALAR(land_rvt_pwm, "LAND_RVT_PWM", LAND_RVT_PWM_DEFAULT),
 
+    // @Param: LAND_RAMP_TIME
+    // @DisplayName: Post landing motor ramp time
+    // @Description: Time to ramp motor outputs down to neutral after landing on a post
+    // @User: Advanced
+    // @Units: s
+    // @Range: 0.1 30
+    // @Increment: 0.1
+    GSCALAR(land_ramp_time, "LAND_RAMP_TIME", LAND_RAMP_TIME_DEFAULT),
+
     // @Param: LAND_SHUTDOWN_CM
     // @DisplayName: Landing shutdown height
     // @Description: The height at which motors are shutdown during landing sequence

@@ -584,6 +584,44 @@ void Copter::twentyfive_hz_logging()
     }
 #endif
 
+// Put my code for slope calculation here!!
+#if RANGEFINDER_ENABLED == ENABLED
+    // RF1 is the front rangefinder. RF2 in the back rangefinder.
+
+    // Fetch rangefinder variables:
+    RF_distances = rangefinder.get_both_distances_cm(); // fetch RF distances from libraries
+    RF1_offsets = rangefinder.get_rangefinder_offset_cm(0); // fetch RF1 offsets (NED in body frame)
+    RF2_offsets = rangefinder.get_rangefinder_offset_cm(1); // fetch RF2 offsets (NED in body frame)
+    
+    // // Calculate slope in perfect hover conditions:
+    // // ground_inclination = atan( (RF_distances[0]-RF_distances[1]) / (RF1_offsets[0]-RF2_offsets[0]) ) * 180 / 3.1416;
+    // ground_inclination = atanf((RF_distances[1] - RF_distances[0]) / (abs(RF1_offsets[0]) + abs(RF2_offsets[0]))) * 180 / 3.1416;
+
+    // // Add tilt angle compensation:
+    // // tilt_compensation = MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
+    // ground_inclination = -degrees(ahrs.get_pitch()) - ground_inclination;
+
+
+     // NEW CODE TO TEST TO CALCULATE SLOPE ANGLE
+     // Vector approach: This should compensate for pitch and roll, assuming a constant straight surface
+     Vector3f r_RF1dist_B_IMU = RF1_offsets + Vector3f(0, 0, RF_distances[0]); // cm
+     Vector3f r_RF2dist_B_IMU = RF2_offsets + Vector3f(0, 0, RF_distances[1]); // cm. I added a 4cm offset to compensate for RF error.
+     Vector3f vector_slope = ahrs.body_to_earth(r_RF1dist_B_IMU - r_RF2dist_B_IMU);
+     float theta_slope = 90.0 - (acosf(vector_slope.dot(Vector3f(0,0,1))/vector_slope.length()) * 180 / 3.1416);
+     ground_inclination = theta_slope;
+
+    //  gcs().send_text(MAV_SEVERITY_INFO, "RF1_offsets: %4.2f, %4.2f, %4.2f", RF1_offsets[0], RF1_offsets[1], RF1_offsets[2]);
+    //  gcs().send_text(MAV_SEVERITY_INFO, "r_RF1dist_B_IMU: %4.2f, %4.2f, %4.2f", r_RF1dist_B_IMU[0], r_RF1dist_B_IMU[1], r_RF1dist_B_IMU[2]);
+    //  gcs().send_text(MAV_SEVERITY_INFO, "RF2_offsets: %4.2f, %4.2f, %4.2f", RF2_offsets[0], RF2_offsets[1], RF2_offsets[2]);
+    //  gcs().send_text(MAV_SEVERITY_INFO, "r_RF2dist_B_IMU: %4.2f, %4.2f, %4.2f", r_RF2dist_B_IMU[0], r_RF2dist_B_IMU[1], r_RF2dist_B_IMU[2]);
+    //  gcs().send_text(MAV_SEVERITY_INFO, "vector_slope: %4.2f, %4.2f, %4.2f", vector_slope[0], vector_slope[1], vector_slope[2]);
+    //  gcs().send_text(MAV_SEVERITY_INFO, "Vector Slope: %4.2f deg", theta_slope);
+    // END OF NEW TEST CODE
+
+    gcs().send_named_float("SLOPE", ground_inclination);
+    
+#endif
+
 }
 
 // three_hz_loop - 3.3hz loop
@@ -602,24 +640,6 @@ void Copter::three_hz_loop()
     // check if we have breached a fence
     fence_check();
 #endif // AP_FENCE_ENABLED
-
-// // Put my code for slope calculation here!!
-// #if RANGEFINDER_ENABLED == ENABLED
-
-//     // Fetch rangefinder variables:
-//     RF_distances = rangefinder.get_both_distances_cm(); // fetch RF distances from libraries
-//     RF1_offsets = rangefinder.get_rangefinder_offset_cm(0); // fetch RF1 offsets (NED in body frame)
-//     RF2_offsets = rangefinder.get_rangefinder_offset_cm(1); // fetch RF2 offsets (NED in body frame)
-    
-//     // Calculate slope in perfect hover conditions:
-//     // ground_inclination = atan( (RF_distances[0]-RF_distances[1]) / (RF1_offsets[0]-RF2_offsets[0]) ) * 180 / 3.1416;
-//     ground_inclination = atan((RF_distances[1] - RF_distances[0]) / (abs(RF1_offsets[0]) + abs(RF2_offsets[0]))) * 180 / 3.1416;
-
-//     // Add tilt angle compensation:
-//     // tilt_compensation = MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
-//     ground_inclination = -degrees(ahrs.get_pitch()) - ground_inclination;
-//     //gcs().send_text(MAV_SEVERITY_CRITICAL, "Ground inclination with comp.: %4.2f deg", ground_inclination );
-// #endif
 
     // update ch6 in flight tuning
     tuning();

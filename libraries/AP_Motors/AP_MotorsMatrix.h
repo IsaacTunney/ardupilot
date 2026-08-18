@@ -152,6 +152,11 @@ protected:
     const char*         _frame_type_string = "";  //  string representation of frame type
 
 private:
+    static constexpr uint16_t POST_LANDING_NEUTRAL_PWM = 1500;
+    bool _post_landing_ramp_started = false;
+    uint32_t _post_landing_ramp_start_ms = 0;
+    float _post_landing_ramp_start_pwm[AP_MOTORS_MAX_NUM_MOTORS] {};
+
     // setup motors matrix
     bool setup_quad_matrix(motor_frame_type frame_type);
     bool setup_hexa_matrix(motor_frame_type frame_type);
